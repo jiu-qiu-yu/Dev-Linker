@@ -19,6 +19,7 @@ export class TCPSocketManager extends EventEmitter {
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
   private reconnectInterval = 3000
+  private manualDisconnect = false  // 标记是否为手动断开
 
   constructor() {
     super()
@@ -45,6 +46,7 @@ export class TCPSocketManager extends EventEmitter {
         this.socket.connect(options.port, options.host, () => {
           console.log('[TCP] Connected successfully')
           this.reconnectAttempts = 0
+          this.manualDisconnect = false  // 连接成功，重置手动断开标志
           this.emit('connected')
           resolve()
         })
@@ -66,7 +68,10 @@ export class TCPSocketManager extends EventEmitter {
         this.socket.on('close', () => {
           console.log('[TCP] Connection closed')
           this.emit('close')
-          this.handleReconnect()
+          // 只有在非手动断开时才尝试重连
+          if (!this.manualDisconnect) {
+            this.handleReconnect()
+          }
         })
 
         // 超时事件
@@ -104,6 +109,9 @@ export class TCPSocketManager extends EventEmitter {
    * 断开连接
    */
   disconnect(): void {
+    // 标记为手动断开
+    this.manualDisconnect = true
+
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null

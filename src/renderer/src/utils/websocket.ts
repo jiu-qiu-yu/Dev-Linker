@@ -9,6 +9,7 @@ export class WebSocketManager {
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
   private reconnectInterval = 3000
+  private manualDisconnect = false  // 标记是否为手动断开
 
   // 事件回调
   public onOpen?: () => void
@@ -34,6 +35,7 @@ export class WebSocketManager {
         this.ws.onopen = () => {
           console.log('WebSocket connected')
           this.reconnectAttempts = 0
+          this.manualDisconnect = false  // 连接成功，重置手动断开标志
           this.onOpen?.()
           resolve()
         }
@@ -52,7 +54,10 @@ export class WebSocketManager {
         this.ws.onclose = () => {
           console.log('WebSocket disconnected')
           this.onClose?.()
-          this.handleReconnect(url, sn)
+          // 只有在非手动断开时才尝试重连
+          if (!this.manualDisconnect) {
+            this.handleReconnect(url, sn)
+          }
         }
       } catch (error) {
         console.error('Failed to connect WebSocket:', error)
@@ -83,6 +88,9 @@ export class WebSocketManager {
    * 关闭连接
    */
   disconnect(): void {
+    // 标记为手动断开
+    this.manualDisconnect = true
+
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null

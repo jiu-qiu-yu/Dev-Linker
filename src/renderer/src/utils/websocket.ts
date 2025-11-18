@@ -69,7 +69,7 @@ export class WebSocketManager {
   /**
    * 发送数据
    */
-  send(data: string): boolean {
+  send(data: string | Uint8Array): boolean {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.error('WebSocket is not connected')
       return false

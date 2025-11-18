@@ -61,7 +61,7 @@ export class TCPSocket {
   /**
    * 发送数据
    */
-  async send(data: string | Buffer): Promise<boolean> {
+  async send(data: string | Buffer | Uint8Array): Promise<boolean> {
     if (!window.electronAPI) {
       console.error('[TCP] Electron API not available')
       return false
@@ -69,7 +69,19 @@ export class TCPSocket {
 
     try {
       console.log('[TCP] Sending data:', data)
-      const result = await window.electronAPI.tcp.send(data.toString())
+
+      // 如果是Uint8Array，转换为hex字符串
+      let dataToSend: string
+      if (data instanceof Uint8Array) {
+        // 转换为hex字符串（每字节2位十六进制）
+        dataToSend = Array.from(data)
+          .map(byte => byte.toString(16).padStart(2, '0'))
+          .join('')
+      } else {
+        dataToSend = data.toString()
+      }
+
+      const result = await window.electronAPI.tcp.send(dataToSend)
       return result
     } catch (error) {
       console.error('[TCP] Failed to send data:', error)

@@ -172,4 +172,21 @@ export class DataFormatter {
     }
     return 'string'
   }
+
+  /**
+   * 将HEX字符串转换为Uint8Array（二进制数据）
+   */
+  static hexToUint8Array(hex: string): Uint8Array {
+    const cleanHex = hex.replace(/\s/g, '').toUpperCase()
+    const bytes = []
+    for (let i = 0; i < cleanHex.length; i += 2) {
+      if (i + 1 < cleanHex.length) {
+        bytes.push(parseInt(cleanHex.substr(i, 2), 16))
+      } else {
+        // 奇数位时，用0填充低4位
+        bytes.push(parseInt(cleanHex.substr(i, 1) + '0', 16))
+      }
+    }
+    return new Uint8Array(bytes)
+  }
 }

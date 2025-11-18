@@ -27,7 +27,7 @@
       <div class="send-actions">
         <el-button
           type="primary"
-          :disabled="!canSend || !sendData.trim()"
+          :disabled="!canSend || !hasSendData"
           @click="handleSend"
           :loading="isSending"
         >
@@ -126,6 +126,13 @@ const logs = ref<LogEntry[]>([])
 
 // 计算属性
 const canSend = computed(() => connectionStore.connectionStatus === 'connected')
+
+const hasSendData = computed(() => {
+  if (sendFormat.value === 'hex') {
+    return rawSendData.value.length > 0
+  }
+  return sendData.value.trim().length > 0
+})
 
 const sendPlaceholder = computed(() => {
   return sendFormat.value === 'string'
@@ -247,7 +254,7 @@ const addLog = (type: LogEntry['type'], content: string, originalFormat: 'string
 }
 
 const handleSend = async () => {
-  if (!sendData.value.trim()) {
+  if (!hasSendData.value) {
     ElMessage.warning('请输入要发送的数据')
     return
   }
@@ -270,21 +277,27 @@ const handleSend = async () => {
     }
 
     // 验证并准备发送数据
-    let dataToSend = sendData.value
+    let dataToSend: string | Uint8Array
 
-    // 如果是HEX格式，使用原始数据（已过滤并去除了空格）
+    // 如果是HEX格式，转换为二进制数据发送
     if (sendFormat.value === 'hex') {
       if (!rawSendData.value || rawSendData.value.length === 0) {
         throw new Error('请输入有效的十六进制数据')
       }
-      dataToSend = rawSendData.value
+      // 转换为二进制数据
+      dataToSend = DataFormatter.hexToUint8Array(rawSendData.value)
+    } else {
+      // 字符串格式直接发送
+      dataToSend = sendData.value
     }
 
-    const success = connectionStore.sendData(dataToSend)
+    const success = await connectionStore.sendData(dataToSend)
     if (success) {
-      addLog('send', sendData.value, sendFormat.value)
+      addLog('send', sendDataDisplay.value, sendFormat.value)
       ElMessage.success('发送成功')
+      // 清空数据
       sendData.value = ''
+      rawSendData.value = ''
     } else {
       throw new Error('发送失败：网络错误或连接已断开')
     }

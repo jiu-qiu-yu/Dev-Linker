@@ -106,11 +106,11 @@ export const useConnectionStore = defineStore('connection', () => {
   }
 
   // 方法：发送数据
-  const sendData = (data: string): boolean => {
+  const sendData = async (data: string | Uint8Array): Promise<boolean> => {
     if (serverConfig.value.protocol === 'ws' || serverConfig.value.protocol === 'wss') {
       return wsManager.value?.send(data) || false
     } else if (serverConfig.value.protocol === 'tcp') {
-      return tcpSocket.value?.send(data) || false
+      return await tcpSocket.value?.send(data) || false
     }
     return false
   }

@@ -26,15 +26,39 @@ wss.on('connection', (ws, req) => {
 
   // 监听消息
   ws.on('message', (data) => {
-    const message = data.toString()
-    console.log(`[WS Server] Received: ${message}`)
+    // 所有WebSocket数据在Node.js中都是Buffer
+    // 我们需要检查数据类型来决定如何显示
 
-    // 回显消息
-    ws.send(JSON.stringify({
-      type: 'echo',
-      data: message,
-      timestamp: Date.now()
-    }))
+    const textData = data.toString('utf8')
+
+    // 检查是否为十六进制字符串
+    // 十六进制字符串的特征：只包含0-9、A-F、a-f字符，长度为偶数
+    const isHexString = /^[0-9A-Fa-f]+$/.test(textData) && textData.length % 2 === 0
+
+    if (isHexString && textData.length > 0) {
+      // 认为是十六进制数据，格式化显示（每两个字符加一个空格）
+      const hexWithSpaces = textData.match(/.{1,2}/g)?.join(' ') || textData
+      console.log(`[WS Server] Received: ${hexWithSpaces}`)
+
+      // 回显消息（作为JSON）
+      ws.send(JSON.stringify({
+        type: 'echo',
+        data: hexWithSpaces,
+        timestamp: Date.now(),
+        isBinary: true
+      }))
+    } else {
+      // 显示为文本数据
+      console.log(`[WS Server] Received: ${textData}`)
+
+      // 回显消息
+      ws.send(JSON.stringify({
+        type: 'echo',
+        data: textData,
+        timestamp: Date.now(),
+        isBinary: false
+      }))
+    }
 
     // 随机发送测试数据
     setTimeout(() => {
@@ -44,14 +68,6 @@ wss.on('connection', (ws, req) => {
         timestamp: Date.now()
       }))
     }, 1000)
-  })
-
-  // 心跳响应
-  ws.on('message', (data) => {
-    const message = data.toString()
-    if (message === 'PING') {
-      ws.send('PONG')
-    }
   })
 
   ws.on('close', () => {

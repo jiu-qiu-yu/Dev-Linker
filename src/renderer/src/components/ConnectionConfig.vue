@@ -58,7 +58,7 @@
         <template #header>
           <div class="card-header">
             <span>心跳包配置</span>
-            <el-switch v-model="form.heartbeat.enabled" @change="onHeartbeatToggle" />
+            <el-switch v-model="form.heartbeat.enabled" @change="onHeartbeatToggle" :disabled="isHeartbeatDisabled" />
           </div>
         </template>
 
@@ -68,7 +68,7 @@
               v-model="form.heartbeat.interval"
               :min="5"
               :max="3600"
-              :disabled="!form.heartbeat.enabled"
+              :disabled="!form.heartbeat.enabled || isHeartbeatDisabled"
             />
             <span class="unit">秒</span>
           </div>
@@ -80,14 +80,14 @@
             type="textarea"
             :rows="3"
             placeholder="请输入心跳包内容"
-            :disabled="!form.heartbeat.enabled"
+            :disabled="!form.heartbeat.enabled || isHeartbeatDisabled"
             spellcheck="false"
             @input="handleHeartbeatInput"
           />
         </el-form-item>
 
         <el-form-item label="数据格式">
-          <el-radio-group v-model="form.heartbeat.format" :disabled="!form.heartbeat.enabled">
+          <el-radio-group v-model="form.heartbeat.format" :disabled="!form.heartbeat.enabled || isHeartbeatDisabled">
             <el-radio label="string">字符串 (String)</el-radio>
             <el-radio label="hex">十六进制 (Hex)</el-radio>
           </el-radio-group>
@@ -212,8 +212,13 @@ const statusType = computed(() => {
   return typeMap[connectionStatus.value]
 })
 
+// 连接时锁定心跳包配置
+const isHeartbeatDisabled = computed(() => {
+  return connectionStatus.value === 'connected' || connectionStatus.value === 'connecting'
+})
+
 const canConnect = computed(() => {
-  return form.value.host && form.value.port && form.value.sn
+  return form.value.host && form.value.port && form.value.sn && !isHeartbeatDisabled.value
 })
 
 const onProtocolChange = (protocol: 'ws' | 'wss' | 'tcp') => {
@@ -247,9 +252,14 @@ const handleHeartbeatInput = (value: string) => {
     // 立即格式化显示（每两个字符加一个空格）
     const formatted = DataFormatter.formatHexWithSpaces(cleaned)
     heartbeatDisplayContent.value = formatted
+    // 同步更新form中的content字段，使用纯字符串（不带空格）进行存储
+    // 这样localStorage中存储的是标准格式，避免混淆
+    form.value.heartbeat.content = cleaned
   } else {
     // 字符串模式下直接更新显示内容
     heartbeatDisplayContent.value = value
+    // 同步更新form中的content字段
+    form.value.heartbeat.content = value
   }
 }
 
@@ -264,12 +274,16 @@ watch(() => form.value.heartbeat.format, (newFormat, oldFormat) => {
         // 更新原始数据和显示数据
         rawHeartbeatContent.value = DataFormatter.sanitizeHexInput(converted)
         heartbeatDisplayContent.value = DataFormatter.formatHexWithSpaces(rawHeartbeatContent.value)
+        // 存储纯字符串（不带空格）避免混淆
+        form.value.heartbeat.content = DataFormatter.sanitizeHexInput(converted)
       } else {
         // HEX转字符串
         const hexData = rawHeartbeatContent.value
         const converted = DataFormatter.hexToString(hexData)
         heartbeatDisplayContent.value = converted
         rawHeartbeatContent.value = ''
+        // 同步更新form中的content字段
+        form.value.heartbeat.content = converted
       }
 
       lastHeartbeatFormat.value = newFormat
@@ -278,6 +292,7 @@ watch(() => form.value.heartbeat.format, (newFormat, oldFormat) => {
       // 转换失败时清空内容
       heartbeatDisplayContent.value = ''
       rawHeartbeatContent.value = ''
+      form.value.heartbeat.content = ''
     }
   }
 })
@@ -306,9 +321,7 @@ const handleConnect = async () => {
     connectionStore.updateHeartbeatConfig({
       enabled: form.value.heartbeat.enabled,
       interval: form.value.heartbeat.interval,
-      content: form.value.heartbeat.format === 'hex' && rawHeartbeatContent.value
-        ? rawHeartbeatContent.value
-        : heartbeatDisplayContent.value,
+      content: form.value.heartbeat.content,
       format: form.value.heartbeat.format
     })
 
@@ -420,11 +433,13 @@ onMounted(() => {
 
   // 如果心跳格式是HEX，需要格式化显示数据并设置原始数据
   if (form.value.heartbeat.format === 'hex' && form.value.heartbeat.content) {
-    rawHeartbeatContent.value = DataFormatter.sanitizeHexInput(form.value.heartbeat.content)
+    // content存储的是纯字符串（不带空格），需要格式化显示
+    rawHeartbeatContent.value = form.value.heartbeat.content
     heartbeatDisplayContent.value = DataFormatter.formatHexWithSpaces(rawHeartbeatContent.value)
   } else {
     // 字符串模式直接使用配置内容
     heartbeatDisplayContent.value = form.value.heartbeat.content || ''
+    rawHeartbeatContent.value = ''
   }
 
   // 确保所有必要字段都有值，防止按钮被禁用
@@ -433,8 +448,6 @@ onMounted(() => {
   if (!form.value.sn || form.value.sn.trim() === '') {
     form.value.sn = 'DEV-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9).toUpperCase()
   }
-
-  console.log('[ConnectionConfig] Form initialized:', form.value)
 })
 </script>
 

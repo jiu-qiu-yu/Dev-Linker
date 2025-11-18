@@ -76,7 +76,18 @@ export class WebSocketManager {
     }
 
     try {
-      this.ws.send(data)
+      if (data instanceof Uint8Array) {
+        // 如果是Uint8Array，转换为十六进制字符串发送（不带空格）
+        // 这样服务器就能正确显示为HEX格式
+        const hexString = Array.from(data)
+          .map(byte => byte.toString(16).padStart(2, '0'))
+          .join('')
+        console.log('[WebSocket] Sending HEX as string:', hexString)
+        this.ws.send(hexString)
+      } else {
+        // 字符串直接发送
+        this.ws.send(data)
+      }
       return true
     } catch (error) {
       console.error('Failed to send data:', error)

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { DataFormatter } from '../utils/data-formatter'
 
 export type ConnectionProtocol = 'ws' | 'wss' | 'tcp'
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'failed' | 'reconnecting'
@@ -127,17 +128,17 @@ export const useConnectionStore = defineStore('connection', () => {
     console.log(`[Heartbeat] Starting heartbeat, interval: ${heartbeatConfig.value.interval}s`)
     heartbeatTimer = setInterval(() => {
       if (connectionStatus.value === 'connected') {
-        let dataToSend = heartbeatConfig.value.content
+        let dataToSend: string | Uint8Array = heartbeatConfig.value.content
 
         // 根据格式转换数据
         if (heartbeatConfig.value.format === 'hex') {
-          // 如果选择HEX格式，需要将字符串转换为十六进制
-          dataToSend = heartbeatConfig.value.content.split('')
-            .map(char => char.charCodeAt(0).toString(16).padStart(2, '0'))
-            .join('')
+          // 如果选择HEX格式，需要将HEX字符串转换为二进制数据
+          dataToSend = DataFormatter.hexToUint8Array(heartbeatConfig.value.content)
+          console.log('[Heartbeat] Sending heartbeat (HEX)')
+        } else {
+          console.log('[Heartbeat] Sending heartbeat (STRING)')
         }
 
-        console.log('[Heartbeat] Sending heartbeat:', dataToSend)
         sendData(dataToSend)
       }
     }, heartbeatConfig.value.interval * 1000)

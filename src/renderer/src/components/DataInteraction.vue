@@ -178,14 +178,17 @@ watch(sendFormat, (newFormat, oldFormat) => {
         // 字符串转HEX
         const currentData = sendData.value
         const converted = DataFormatter.stringToHex(currentData)
-        // 更新原始数据（显示通过计算属性自动处理）
+        // 清理并更新原始数据（显示通过计算属性自动处理）
         rawSendData.value = DataFormatter.sanitizeHexInput(converted)
+        // 清空字符串数据
         sendData.value = ''
       } else {
         // HEX转字符串
         const hexData = rawSendData.value
         const converted = DataFormatter.hexToString(hexData)
+        // 更新字符串数据
         sendData.value = converted
+        // 清空HEX原始数据
         rawSendData.value = ''
       }
 
@@ -291,9 +294,23 @@ const handleSend = async () => {
       dataToSend = sendData.value
     }
 
-    const success = await connectionStore.sendData(dataToSend)
+      const success = await connectionStore.sendData(dataToSend)
     if (success) {
-      addLog('send', sendDataDisplay.value, sendFormat.value)
+      // 记录发送的数据：使用实际发送的原始数据，而不是显示数据
+      let logContent: string
+      let logFormat: 'string' | 'hex'
+
+      if (sendFormat.value === 'hex') {
+        // HEX格式发送时，记录带空格的显示格式
+        logContent = DataFormatter.formatHexWithSpaces(rawSendData.value)
+        logFormat = 'hex'
+      } else {
+        // 字符串格式发送时，记录原始字符串
+        logContent = sendData.value
+        logFormat = 'string'
+      }
+
+      addLog('send', logContent, logFormat)
       ElMessage.success('发送成功')
       // 清空数据
       sendData.value = ''

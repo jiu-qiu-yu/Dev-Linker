@@ -4,6 +4,23 @@ import { ref } from 'vue'
 export type ConnectionProtocol = 'ws' | 'wss' | 'tcp'
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'failed' | 'reconnecting'
 
+// 前置声明，避免循环导入
+export interface WebSocketManager {
+  send(data: string): boolean
+  onOpen?: () => void
+  onClose?: () => void
+  onError?: (error: Event) => void
+  onMessage?: (data: string) => void
+}
+
+export interface TCPSocket {
+  send(data: string): boolean
+  onOpen?: () => void
+  onClose?: () => void
+  onError?: (error: Error) => void
+  onData?: (data: string) => void
+}
+
 export interface ServerConfig {
   host: string
   port: number
@@ -48,6 +65,13 @@ export const useConnectionStore = defineStore('connection', () => {
   // 当前连接实例
   const currentConnection = ref<WebSocket | net.Socket | null>(null)
 
+  // 连接管理器实例
+  const wsManager = ref<WebSocketManager | null>(null)
+  const tcpSocket = ref<TCPSocket | null>(null)
+
+  // 心跳包定时器
+  let heartbeatTimer: NodeJS.Timeout | null = null
+
   // 方法：更新服务器配置
   const updateServerConfig = (config: Partial<ServerConfig>) => {
     serverConfig.value = { ...serverConfig.value, ...config }
@@ -60,15 +84,73 @@ export const useConnectionStore = defineStore('connection', () => {
     saveConfig()
   }
 
+  // 方法：设置连接状态
+  const setConnectionStatus = (status: ConnectionStatus) => {
+    connectionStatus.value = status
+
+    // 连接状态改变时处理心跳包
+    if (status === 'connected') {
+      startHeartbeat()
+    } else {
+      stopHeartbeat()
+    }
+  }
+
+  // 方法：设置连接管理器
+  const setConnectionManager = (type: 'ws' | 'tcp', manager: WebSocketManager | TCPSocket | null) => {
+    if (type === 'ws') {
+      wsManager.value = manager as WebSocketManager
+    } else {
+      tcpSocket.value = manager as TCPSocket
+    }
+  }
+
+  // 方法：发送数据
+  const sendData = (data: string): boolean => {
+    if (serverConfig.value.protocol === 'ws' || serverConfig.value.protocol === 'wss') {
+      return wsManager.value?.send(data) || false
+    } else if (serverConfig.value.protocol === 'tcp') {
+      return tcpSocket.value?.send(data) || false
+    }
+    return false
+  }
+
+  // 方法：启动心跳包
+  const startHeartbeat = () => {
+    if (!heartbeatConfig.value.enabled || !heartbeatConfig.value.content) {
+      console.log('[Heartbeat] Heartbeat disabled or content empty')
+      return
+    }
+
+    stopHeartbeat() // 清除已有定时器
+
+    console.log(`[Heartbeat] Starting heartbeat, interval: ${heartbeatConfig.value.interval}s`)
+    heartbeatTimer = setInterval(() => {
+      if (connectionStatus.value === 'connected') {
+        console.log('[Heartbeat] Sending heartbeat:', heartbeatConfig.value.content)
+        sendData(heartbeatConfig.value.content)
+      }
+    }, heartbeatConfig.value.interval * 1000)
+  }
+
+  // 方法：停止心跳包
+  const stopHeartbeat = () => {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer)
+      heartbeatTimer = null
+      console.log('[Heartbeat] Stopped')
+    }
+  }
+
   // 方法：更新心跳包配置
   const updateHeartbeatConfig = (config: Partial<HeartbeatConfig>) => {
     heartbeatConfig.value = { ...heartbeatConfig.value, ...config }
     saveConfig()
-  }
 
-  // 方法：设置连接状态
-  const setConnectionStatus = (status: ConnectionStatus) => {
-    connectionStatus.value = status
+    // 如果心跳包已启用且正在连接，重新启动定时器
+    if (connectionStatus.value === 'connected' && heartbeatConfig.value.enabled) {
+      startHeartbeat()
+    }
   }
 
   // 方法：保存配置到本地存储
@@ -122,11 +204,17 @@ export const useConnectionStore = defineStore('connection', () => {
     heartbeatConfig,
     connectionStatus,
     currentConnection,
+    wsManager,
+    tcpSocket,
     // actions
     updateServerConfig,
     updateDeviceConfig,
     updateHeartbeatConfig,
     setConnectionStatus,
+    setConnectionManager,
+    sendData,
+    startHeartbeat,
+    stopHeartbeat,
     saveConfig,
     loadConfig
   }

@@ -264,12 +264,14 @@ const handleConnect = async () => {
       wsManager.onOpen = () => {
         console.log('WebSocket connected')
         connectionStore.setConnectionStatus('connected')
+        connectionStore.setConnectionManager('ws', wsManager)
         ElMessage.success('WebSocket 连接成功')
       }
 
       wsManager.onClose = () => {
         console.log('WebSocket disconnected')
         connectionStore.setConnectionStatus('disconnected')
+        connectionStore.setConnectionManager('ws', null)
         ElMessage.info('WebSocket 已断开')
       }
 
@@ -281,7 +283,14 @@ const handleConnect = async () => {
 
       wsManager.onMessage = (data) => {
         console.log('WebSocket message:', data)
-        // TODO: 将数据传递给 DataInteraction 组件显示
+        // 将数据传递给 DataInteraction 组件显示
+        const dataInteraction = document.querySelector('.data-interaction')
+        if (dataInteraction && (dataInteraction as any).__vue__) {
+          const instance = (dataInteraction as any).__vue__.exposed
+          if (instance && instance.simulateReceiveData) {
+            instance.simulateReceiveData(data)
+          }
+        }
       }
 
       // 建立连接
@@ -292,12 +301,14 @@ const handleConnect = async () => {
       tcpSocket.onOpen = () => {
         console.log('TCP connected')
         connectionStore.setConnectionStatus('connected')
+        connectionStore.setConnectionManager('tcp', tcpSocket)
         ElMessage.success('TCP 连接成功')
       }
 
       tcpSocket.onClose = () => {
         console.log('TCP disconnected')
         connectionStore.setConnectionStatus('disconnected')
+        connectionStore.setConnectionManager('tcp', null)
         ElMessage.info('TCP 已断开')
       }
 
@@ -329,8 +340,10 @@ const handleDisconnect = () => {
   // 根据当前协议断开连接
   if (form.value.protocol === 'ws' || form.value.protocol === 'wss') {
     wsManager.disconnect()
+    connectionStore.setConnectionManager('ws', null)
   } else if (form.value.protocol === 'tcp') {
     tcpSocket.disconnect()
+    connectionStore.setConnectionManager('tcp', null)
   }
 
   connectionStore.setConnectionStatus('disconnected')

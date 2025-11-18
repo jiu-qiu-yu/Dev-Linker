@@ -163,18 +163,33 @@ const handleSend = async () => {
   isSending.value = true
 
   try {
-    // TODO: 实现实际的数据发送逻辑
-    // 这里将在第二阶段实现
+    // 检查连接状态
+    if (connectionStore.connectionStatus !== 'connected') {
+      ElMessage.error('未连接到服务器')
+      addLog('error', '发送失败: 未连接到服务器')
+      return
+    }
 
-    // 模拟发送
-    addLog('send', sendData.value, sendFormat.value)
-    ElMessage.success('发送成功')
+    // 检查连接管理器
+    if (!connectionStore.wsManager && !connectionStore.tcpSocket) {
+      ElMessage.error('连接管理器未初始化')
+      addLog('error', '发送失败: 连接管理器未初始化')
+      return
+    }
 
-    // 清空发送框
-    sendData.value = ''
+    // 发送数据
+    const success = connectionStore.sendData(sendData.value)
+    if (success) {
+      addLog('send', sendData.value, sendFormat.value)
+      ElMessage.success('发送成功')
+      sendData.value = ''
+    } else {
+      throw new Error('发送失败：网络错误或连接已断开')
+    }
   } catch (error) {
-    addLog('error', '发送失败: ' + (error as Error).message)
-    ElMessage.error('发送失败')
+    const errorMsg = (error as Error).message
+    addLog('error', '发送失败: ' + errorMsg)
+    ElMessage.error('发送失败: ' + errorMsg)
   } finally {
     isSending.value = false
   }

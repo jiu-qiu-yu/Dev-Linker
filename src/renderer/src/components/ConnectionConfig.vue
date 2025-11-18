@@ -82,6 +82,7 @@
             placeholder="请输入心跳包内容"
             :disabled="!form.heartbeat.enabled"
             spellcheck="false"
+            @input="handleHeartbeatInput"
           />
         </el-form-item>
 
@@ -143,10 +144,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useConnectionStore } from '@/store/connection'
 import { WebSocketManager } from '@/utils/websocket'
 import { TCPSocket } from '@/utils/tcp'
+import { DataFormatter, DataFormat } from '@/utils/data-formatter'
 import {
   Setting,
   Location,
@@ -178,6 +180,7 @@ const form = ref({
 })
 
 const isConnecting = ref(false)
+const lastHeartbeatFormat = ref<'string' | 'hex'>('string')  // 记录心跳包上次的格式
 
 const connectionStatus = computed(() => connectionStore.connectionStatus)
 
@@ -227,6 +230,31 @@ const onHeartbeatToggle = (enabled: boolean) => {
     form.value.heartbeat.content = 'PING'
   }
 }
+
+// 处理心跳包数据输入（HEX模式下过滤非HEX字符）
+const handleHeartbeatInput = (value: string) => {
+  if (form.value.heartbeat.format === 'hex') {
+    // 在HEX模式下，只保留有效的HEX字符
+    const cleaned = DataFormatter.sanitizeHexInput(value)
+    form.value.heartbeat.content = cleaned
+  }
+}
+
+// 监听心跳包格式变化，自动转换内容
+watch(() => form.value.heartbeat.format, (newFormat, oldFormat) => {
+  if (newFormat !== oldFormat && form.value.heartbeat.content) {
+    try {
+      // 转换心跳包内容格式
+      const converted = DataFormatter.convert(form.value.heartbeat.content, oldFormat as DataFormat, newFormat as DataFormat)
+      form.value.heartbeat.content = converted
+      lastHeartbeatFormat.value = newFormat
+    } catch (error) {
+      console.error('Heartbeat format conversion error:', error)
+      // 转换失败时清空内容
+      form.value.heartbeat.content = ''
+    }
+  }
+})
 
 const handleConnect = async () => {
   if (!canConnect.value) {

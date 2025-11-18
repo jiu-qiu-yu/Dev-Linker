@@ -87,7 +87,7 @@
         </el-form-item>
 
         <el-form-item label="数据格式">
-          <el-radio-group v-model="form.heartbeat.format" :disabled="!form.heartbeat.enabled || isHeartbeatDisabled">
+          <el-radio-group v-model="form.heartbeat.format" :disabled="!form.heartbeat.enabled || isHeartbeatDisabled" @change="handleFormatChange">
             <el-radio label="string">字符串 (String)</el-radio>
             <el-radio label="hex">十六进制 (Hex)</el-radio>
           </el-radio-group>
@@ -263,45 +263,43 @@ const handleHeartbeatInput = (value: string) => {
   }
 }
 
-// 监听心跳包格式变化，自动转换内容
-watch(() => form.value.heartbeat.format, (newFormat, oldFormat) => {
-  // **重要修复：只在oldFormat存在且确实变化时才转换**
-  // 避免在组件初始化时触发（此时oldFormat可能是undefined或默认值）
-  if (newFormat !== oldFormat && oldFormat && oldFormat !== 'string') {
-    try {
-      if (newFormat === 'hex') {
-        // 字符串转HEX：使用form.value.heartbeat.content作为源数据
-        const currentData = form.value.heartbeat.content
-        if (currentData) {
-          const converted = DataFormatter.stringToHex(currentData)
-          // 更新原始数据和显示数据
-          rawHeartbeatContent.value = DataFormatter.sanitizeHexInput(converted)
-          heartbeatDisplayContent.value = DataFormatter.formatHexWithSpaces(rawHeartbeatContent.value)
-          // 存储纯字符串（不带空格）
-          form.value.heartbeat.content = DataFormatter.sanitizeHexInput(converted)
-        }
-      } else {
-        // HEX转字符串：使用rawHeartbeatContent作为源数据
-        const hexData = rawHeartbeatContent.value
-        if (hexData) {
-          const converted = DataFormatter.hexToString(hexData)
-          heartbeatDisplayContent.value = converted
-          rawHeartbeatContent.value = ''
-          // 同步更新form中的content字段
-          form.value.heartbeat.content = converted
-        }
-      }
+// 处理心跳包格式变化 - 用户手动触发
+const handleFormatChange = (newFormat: 'string' | 'hex') => {
+  try {
+    const oldFormat = lastHeartbeatFormat.value
 
-      lastHeartbeatFormat.value = newFormat
-    } catch (error) {
-      console.error('Heartbeat format conversion error:', error)
-      // 转换失败时清空内容
-      heartbeatDisplayContent.value = ''
-      rawHeartbeatContent.value = ''
-      form.value.heartbeat.content = ''
+    if (newFormat === 'hex') {
+      // 字符串转HEX：使用当前显示内容作为源数据
+      const currentData = heartbeatDisplayContent.value || form.value.heartbeat.content
+      if (currentData) {
+        const converted = DataFormatter.stringToHex(currentData)
+        // 更新原始数据和显示数据
+        rawHeartbeatContent.value = DataFormatter.sanitizeHexInput(converted)
+        heartbeatDisplayContent.value = DataFormatter.formatHexWithSpaces(rawHeartbeatContent.value)
+        // 存储纯字符串（不带空格）
+        form.value.heartbeat.content = DataFormatter.sanitizeHexInput(converted)
+      }
+    } else {
+      // HEX转字符串：使用rawHeartbeatContent作为源数据
+      const hexData = rawHeartbeatContent.value || form.value.heartbeat.content
+      if (hexData) {
+        const converted = DataFormatter.hexToString(hexData)
+        heartbeatDisplayContent.value = converted
+        rawHeartbeatContent.value = ''
+        // 同步更新form中的content字段
+        form.value.heartbeat.content = converted
+      }
     }
+
+    lastHeartbeatFormat.value = newFormat
+  } catch (error) {
+    console.error('Heartbeat format conversion error:', error)
+    // 转换失败时清空内容
+    heartbeatDisplayContent.value = ''
+    rawHeartbeatContent.value = ''
+    form.value.heartbeat.content = ''
   }
-})
+}
 
 const handleConnect = async () => {
   if (!canConnect.value) {
@@ -439,38 +437,25 @@ onMounted(() => {
   // 获取保存的心跳配置
   const savedHeartbeat = connectionStore.heartbeatConfig
 
-  // **关键修复：先保存旧格式，避免watch监听器在设置过程中意外触发**
-  const oldFormat = form.value.heartbeat.format
-
-  // 分别设置心跳包字段，避免整体覆盖导致显示数据丢失
+  // 分别设置心跳包字段
   form.value.heartbeat.enabled = savedHeartbeat.enabled ?? false
   form.value.heartbeat.interval = savedHeartbeat.interval ?? 30
   form.value.heartbeat.content = savedHeartbeat.content || ''
   form.value.heartbeat.format = savedHeartbeat.format || 'string'
 
-  // **最后设置format，避免触发watch监听器**
-  // 如果format变化了，需要手动处理显示数据
-  if (form.value.heartbeat.format !== oldFormat) {
-    // 根据格式初始化显示数据和原始数据
-    if (form.value.heartbeat.format === 'hex' && form.value.heartbeat.content) {
-      // HEX模式：content是纯字符串（不带空格）
-      rawHeartbeatContent.value = form.value.heartbeat.content
-      heartbeatDisplayContent.value = DataFormatter.formatHexWithSpaces(rawHeartbeatContent.value)
-    } else {
-      // 字符串模式：content就是显示内容
-      heartbeatDisplayContent.value = form.value.heartbeat.content || ''
-      rawHeartbeatContent.value = ''
-    }
+  // **设置显示数据和原始数据**
+  if (form.value.heartbeat.format === 'hex' && form.value.heartbeat.content) {
+    // HEX模式：content是纯字符串（不带空格）
+    rawHeartbeatContent.value = form.value.heartbeat.content
+    heartbeatDisplayContent.value = DataFormatter.formatHexWithSpaces(rawHeartbeatContent.value)
   } else {
-    // format未变化，正常初始化
-    if (form.value.heartbeat.format === 'hex' && form.value.heartbeat.content) {
-      rawHeartbeatContent.value = form.value.heartbeat.content
-      heartbeatDisplayContent.value = DataFormatter.formatHexWithSpaces(rawHeartbeatContent.value)
-    } else {
-      heartbeatDisplayContent.value = form.value.heartbeat.content || ''
-      rawHeartbeatContent.value = ''
-    }
+    // 字符串模式：content就是显示内容
+    heartbeatDisplayContent.value = form.value.heartbeat.content || ''
+    rawHeartbeatContent.value = ''
   }
+
+  // 设置lastHeartbeatFormat
+  lastHeartbeatFormat.value = form.value.heartbeat.format
 
   // 确保所有必要字段都有值，防止按钮被禁用
   if (!form.value.host) form.value.host = 'localhost'

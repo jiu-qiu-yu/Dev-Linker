@@ -31,32 +31,37 @@ wss.on('connection', (ws, req) => {
 
     const textData = data.toString('utf8')
 
-    // 检查是否为十六进制字符串
-    // 十六进制字符串的特征：只包含0-9、A-F、a-f字符，长度为偶数
-    const isHexString = /^[0-9A-Fa-f]+$/.test(textData) && textData.length % 2 === 0
+    // 智能检测：以下情况认为是文本
+    // 1. 包含小写字母（a-z）→ 文本
+    // 2. 包含非HEX字符 → 文本
+    // 3. 纯数字 → 文本
+    // 4. 只包含大写字母A-F但没有数字 → 文本（避免AADDDA误判为HEX）
+    const hasLowercase = /[a-z]/.test(textData)
+    const hasNonHexChar = /[^0-9A-F]/.test(textData)
+    const hasOnlyDigits = /^[0-9]+$/.test(textData)
+    const isOnlyUppercaseLetters = /^[A-Z]+$/.test(textData)
+    const hasDigits = /[0-9]/.test(textData)
 
-    if (isHexString && textData.length > 0) {
-      // 认为是十六进制数据，格式化显示（每两个字符加一个空格）
-      const hexWithSpaces = textData.match(/.{1,2}/g)?.join(' ') || textData
-      console.log(`[WS Server] Received: ${hexWithSpaces}`)
+    // 如果是文本数据，直接显示
+    const isTextData = hasLowercase || hasNonHexChar || hasOnlyDigits || (isOnlyUppercaseLetters && !hasDigits)
 
-      // 回显消息（作为JSON）
-      ws.send(JSON.stringify({
-        type: 'echo',
-        data: hexWithSpaces,
-        timestamp: Date.now(),
-        isBinary: true
-      }))
-    } else {
-      // 显示为文本数据
+    if (isTextData) {
       console.log(`[WS Server] Received: ${textData}`)
-
-      // 回显消息
       ws.send(JSON.stringify({
         type: 'echo',
         data: textData,
         timestamp: Date.now(),
         isBinary: false
+      }))
+    } else {
+      // 认为是十六进制数据，格式化显示（每两个字符加一个空格）
+      const hexWithSpaces = textData.match(/.{1,2}/g)?.join(' ') || textData
+      console.log(`[WS Server] Received: ${hexWithSpaces}`)
+      ws.send(JSON.stringify({
+        type: 'echo',
+        data: hexWithSpaces,
+        timestamp: Date.now(),
+        isBinary: true
       }))
     }
 

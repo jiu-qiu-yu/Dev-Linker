@@ -21,6 +21,8 @@
         :rows="4"
         :placeholder="sendPlaceholder"
         :disabled="!canSend"
+        @input="handleSendDataInput"
+        spellcheck="false"
       />
 
       <div class="send-actions">
@@ -81,10 +83,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { useConnectionStore, LogEntry } from '@/store/connection'
 import { Promotion, Delete, Document } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { DataFormatter, DataFormat } from '@/utils/data-formatter'
 
 const connectionStore = useConnectionStore()
 
@@ -92,6 +95,7 @@ const connectionStore = useConnectionStore()
 const sendData = ref('')
 const sendFormat = ref<'string' | 'hex'>('string')
 const isSending = ref(false)
+const lastSendFormat = ref<'string' | 'hex'>('string')  // 记录上次的格式，用于转换
 
 // 日志数据
 const logContainer = ref<HTMLElement>()
@@ -134,17 +138,76 @@ const clearSendData = () => {
   sendData.value = ''
 }
 
+// 处理发送数据输入（HEX模式下过滤非HEX字符）
+const handleSendDataInput = (value: string) => {
+  if (sendFormat.value === 'hex') {
+    // 在HEX模式下，只保留有效的HEX字符
+    const cleaned = DataFormatter.sanitizeHexInput(value)
+    sendData.value = cleaned
+  }
+}
+
+// 监听发送格式变化，自动转换数据
+watch(sendFormat, (newFormat, oldFormat) => {
+  if (newFormat !== oldFormat && sendData.value) {
+    try {
+      // 转换数据格式
+      const converted = DataFormatter.convert(sendData.value, oldFormat as DataFormat, newFormat as DataFormat)
+      sendData.value = converted
+      lastSendFormat.value = newFormat
+    } catch (error) {
+      console.error('Format conversion error:', error)
+      // 转换失败时清空数据
+      sendData.value = ''
+    }
+  }
+})
+
+// 监听日志格式变化，重新转换所有日志显示
+watch(logFormat, (newFormat, oldFormat) => {
+  if (newFormat !== oldFormat && logs.value.length > 0) {
+    logs.value = logs.value.map(log => {
+      try {
+        // 重新转换日志内容
+        const converted = DataFormatter.convert(log.content, oldFormat, newFormat)
+        return {
+          ...log,
+          content: converted,
+          format: newFormat
+        }
+      } catch (error) {
+        // 转换失败时保持原样
+        return {
+          ...log,
+          format: newFormat
+        }
+      }
+    })
+  }
+})
+
 const clearLogs = () => {
   logs.value = []
 }
 
-const addLog = (type: LogEntry['type'], content: string, format: 'string' | 'hex' = 'string') => {
+const addLog = (type: LogEntry['type'], content: string, originalFormat: 'string' | 'hex' = 'string') => {
+  // 根据当前日志格式转换显示内容
+  let displayContent = content
+  if (logFormat.value !== originalFormat) {
+    try {
+      displayContent = DataFormatter.convert(content, originalFormat, logFormat.value)
+    } catch (error) {
+      // 转换失败时显示原始内容
+      displayContent = content
+    }
+  }
+
   const log: LogEntry = {
     id: generateId(),
     timestamp: getCurrentTime(),
     type,
-    content,
-    format
+    content: displayContent,  // 使用转换后的显示内容
+    format: logFormat.value
   }
   logs.value.push(log)
   nextTick(() => {
@@ -177,20 +240,16 @@ const handleSend = async () => {
       return
     }
 
-    // 发送数据 - 根据格式转换数据
-    let dataToSend = sendData.value
+    // 验证并准备发送数据
+    const validation = DataFormatter.validateAndClean(sendData.value, sendFormat.value)
+    if (!validation.valid) {
+      throw new Error(validation.error || '数据格式错误')
+    }
 
+    // 转换为紧凑格式发送（HEX模式下去掉空格）
+    let dataToSend = sendData.value
     if (sendFormat.value === 'hex') {
-      // 如果选择HEX格式，验证并转换数据
-      const cleanHex = sendData.value.replace(/\s/g, '').replace(/^0x/, '')
-      if (cleanHex.length % 2 !== 0) {
-        throw new Error('十六进制数据位数必须是偶数')
-      }
-      if (!/^[0-9A-Fa-f]*$/.test(cleanHex)) {
-        throw new Error('请输入有效的十六进制数据')
-      }
-      // 十六进制数据直接发送（不需要转换，因为用户输入的就是hex）
-      dataToSend = cleanHex
+      dataToSend = validation.cleaned
     }
 
     const success = connectionStore.sendData(dataToSend)
@@ -211,8 +270,8 @@ const handleSend = async () => {
 }
 
 // 模拟接收数据
-const simulateReceiveData = (data: string) => {
-  addLog('receive', data, 'string')
+const simulateReceiveData = (data: string, format: 'string' | 'hex' = 'string') => {
+  addLog('receive', data, format)
 }
 
 defineExpose({

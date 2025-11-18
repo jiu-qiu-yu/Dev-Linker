@@ -231,12 +231,14 @@ const onHeartbeatToggle = (enabled: boolean) => {
   }
 }
 
-// 处理心跳包数据输入（HEX模式下过滤非HEX字符）
+// 处理心跳包数据输入（HEX模式下过滤并格式化非HEX字符）
 const handleHeartbeatInput = (value: string) => {
   if (form.value.heartbeat.format === 'hex') {
     // 在HEX模式下，只保留有效的HEX字符
     const cleaned = DataFormatter.sanitizeHexInput(value)
-    form.value.heartbeat.content = cleaned
+    // 立即格式化显示（每两个字符加一个空格）
+    const formatted = DataFormatter.formatHexWithSpaces(cleaned)
+    form.value.heartbeat.content = formatted
   }
 }
 
@@ -245,7 +247,14 @@ watch(() => form.value.heartbeat.format, (newFormat, oldFormat) => {
   if (newFormat !== oldFormat && form.value.heartbeat.content) {
     try {
       // 转换心跳包内容格式
-      const converted = DataFormatter.convert(form.value.heartbeat.content, oldFormat as DataFormat, newFormat as DataFormat)
+      let converted = DataFormatter.convert(form.value.heartbeat.content, oldFormat as DataFormat, newFormat as DataFormat)
+
+      // 如果是切换到HEX格式，需要格式化显示
+      if (newFormat === 'hex') {
+        const cleaned = DataFormatter.sanitizeHexInput(converted)
+        converted = DataFormatter.formatHexWithSpaces(cleaned)
+      }
+
       form.value.heartbeat.content = converted
       lastHeartbeatFormat.value = newFormat
     } catch (error) {

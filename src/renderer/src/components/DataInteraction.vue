@@ -138,12 +138,14 @@ const clearSendData = () => {
   sendData.value = ''
 }
 
-// 处理发送数据输入（HEX模式下过滤非HEX字符）
+// 处理发送数据输入（HEX模式下过滤并格式化非HEX字符）
 const handleSendDataInput = (value: string) => {
   if (sendFormat.value === 'hex') {
     // 在HEX模式下，只保留有效的HEX字符
     const cleaned = DataFormatter.sanitizeHexInput(value)
-    sendData.value = cleaned
+    // 立即格式化显示（每两个字符加一个空格）
+    const formatted = DataFormatter.formatHexWithSpaces(cleaned)
+    sendData.value = formatted
   }
 }
 
@@ -152,7 +154,14 @@ watch(sendFormat, (newFormat, oldFormat) => {
   if (newFormat !== oldFormat && sendData.value) {
     try {
       // 转换数据格式
-      const converted = DataFormatter.convert(sendData.value, oldFormat as DataFormat, newFormat as DataFormat)
+      let converted = DataFormatter.convert(sendData.value, oldFormat as DataFormat, newFormat as DataFormat)
+
+      // 如果是切换到HEX格式，需要格式化显示
+      if (newFormat === 'hex') {
+        const cleaned = DataFormatter.sanitizeHexInput(converted)
+        converted = DataFormatter.formatHexWithSpaces(cleaned)
+      }
+
       sendData.value = converted
       lastSendFormat.value = newFormat
     } catch (error) {
@@ -241,14 +250,14 @@ const handleSend = async () => {
     }
 
     // 验证并准备发送数据
-    const validation = DataFormatter.validateAndClean(sendData.value, sendFormat.value)
-    if (!validation.valid) {
-      throw new Error(validation.error || '数据格式错误')
-    }
-
-    // 转换为紧凑格式发送（HEX模式下去掉空格）
     let dataToSend = sendData.value
+
+    // 如果是HEX格式，需要转换为紧凑格式发送（去掉空格）
     if (sendFormat.value === 'hex') {
+      const validation = DataFormatter.validateAndClean(sendData.value, sendFormat.value)
+      if (!validation.valid) {
+        throw new Error(validation.error || '数据格式错误')
+      }
       dataToSend = validation.cleaned
     }
 

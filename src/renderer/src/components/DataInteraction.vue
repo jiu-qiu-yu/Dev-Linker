@@ -16,12 +16,11 @@
       </template>
 
       <el-input
-        v-model="sendData"
+        v-model="sendDataDisplay"
         type="textarea"
         :rows="4"
         :placeholder="sendPlaceholder"
         :disabled="!canSend"
-        @input="handleSendDataInput"
         spellcheck="false"
       />
 
@@ -83,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { useConnectionStore, LogEntry } from '@/store/connection'
 import { Promotion, Delete, Document } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -96,6 +95,30 @@ const sendData = ref('')
 const sendFormat = ref<'string' | 'hex'>('string')
 const isSending = ref(false)
 const lastSendFormat = ref<'string' | 'hex'>('string')  // 记录上次的格式，用于转换
+
+// HEX模式下的内部数据存储（不包含空格）
+const rawSendData = ref('')
+
+// 计算属性：用于 v-model 的显示数据
+const sendDataDisplay = computed({
+  get: () => {
+    if (sendFormat.value === 'hex') {
+      // HEX 模式下返回格式化显示
+      return DataFormatter.formatHexWithSpaces(rawSendData.value)
+    }
+    return sendData.value
+  },
+  set: (value: string) => {
+    if (sendFormat.value === 'hex') {
+      // HEX 模式下只保留有效字符并更新原始数据
+      const cleaned = DataFormatter.sanitizeHexInput(value)
+      rawSendData.value = cleaned
+    } else {
+      // 字符串模式下直接更新
+      sendData.value = value
+    }
+  }
+})
 
 // 日志数据
 const logContainer = ref<HTMLElement>()
@@ -134,40 +157,37 @@ const getCurrentTime = () => {
   return now.toLocaleTimeString()
 }
 
+// 清除数据时同时清理原始数据
 const clearSendData = () => {
   sendData.value = ''
-}
-
-// 处理发送数据输入（HEX模式下过滤并格式化非HEX字符）
-const handleSendDataInput = (value: string) => {
-  if (sendFormat.value === 'hex') {
-    // 在HEX模式下，只保留有效的HEX字符
-    const cleaned = DataFormatter.sanitizeHexInput(value)
-    // 立即格式化显示（每两个字符加一个空格）
-    const formatted = DataFormatter.formatHexWithSpaces(cleaned)
-    sendData.value = formatted
-  }
+  rawSendData.value = ''
 }
 
 // 监听发送格式变化，自动转换数据
 watch(sendFormat, (newFormat, oldFormat) => {
-  if (newFormat !== oldFormat && sendData.value) {
+  if (newFormat !== oldFormat) {
     try {
-      // 转换数据格式
-      let converted = DataFormatter.convert(sendData.value, oldFormat as DataFormat, newFormat as DataFormat)
-
-      // 如果是切换到HEX格式，需要格式化显示
       if (newFormat === 'hex') {
-        const cleaned = DataFormatter.sanitizeHexInput(converted)
-        converted = DataFormatter.formatHexWithSpaces(cleaned)
+        // 字符串转HEX
+        const currentData = sendData.value
+        const converted = DataFormatter.stringToHex(currentData)
+        // 更新原始数据（显示通过计算属性自动处理）
+        rawSendData.value = DataFormatter.sanitizeHexInput(converted)
+        sendData.value = ''
+      } else {
+        // HEX转字符串
+        const hexData = rawSendData.value
+        const converted = DataFormatter.hexToString(hexData)
+        sendData.value = converted
+        rawSendData.value = ''
       }
 
-      sendData.value = converted
       lastSendFormat.value = newFormat
     } catch (error) {
       console.error('Format conversion error:', error)
       // 转换失败时清空数据
       sendData.value = ''
+      rawSendData.value = ''
     }
   }
 })
@@ -252,13 +272,12 @@ const handleSend = async () => {
     // 验证并准备发送数据
     let dataToSend = sendData.value
 
-    // 如果是HEX格式，需要转换为紧凑格式发送（去掉空格）
+    // 如果是HEX格式，使用原始数据（已过滤并去除了空格）
     if (sendFormat.value === 'hex') {
-      const validation = DataFormatter.validateAndClean(sendData.value, sendFormat.value)
-      if (!validation.valid) {
-        throw new Error(validation.error || '数据格式错误')
+      if (!rawSendData.value || rawSendData.value.length === 0) {
+        throw new Error('请输入有效的十六进制数据')
       }
-      dataToSend = validation.cleaned
+      dataToSend = rawSendData.value
     }
 
     const success = connectionStore.sendData(dataToSend)
@@ -285,6 +304,20 @@ const simulateReceiveData = (data: string, format: 'string' | 'hex' = 'string') 
 
 defineExpose({
   simulateReceiveData
+})
+
+// 组件初始化
+onMounted(() => {
+  // 加载保存的配置
+  connectionStore.loadConfig()
+
+  // 如果心跳格式是HEX，需要格式化显示数据
+  if (connectionStore.heartbeatConfig.format === 'hex' && connectionStore.heartbeatConfig.content) {
+    const cleanHex = DataFormatter.sanitizeHexInput(connectionStore.heartbeatConfig.content)
+    // 可以选择将心跳内容预填充到发送框（可选）
+    // sendData.value = DataFormatter.formatHexWithSpaces(cleanHex)
+    // rawSendData.value = cleanHex
+  }
 })
 </script>
 

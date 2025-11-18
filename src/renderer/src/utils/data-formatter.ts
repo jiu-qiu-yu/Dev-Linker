@@ -72,8 +72,8 @@ export class DataFormatter {
       if (i + 1 < cleanHex.length) {
         groups.push(cleanHex.substr(i, 2))
       } else {
-        // 奇数位时，单独显示
-        groups.push(cleanHex.substr(i, 1) + '?')
+        // 奇数位时，单独显示（不添加问号）
+        groups.push(cleanHex.substr(i, 1))
       }
     }
     return groups.join(' ')

@@ -76,7 +76,7 @@
 
         <el-form-item label="心跳内容">
           <el-input
-            v-model="form.heartbeat.content"
+            v-model="heartbeatDisplayContent"
             type="textarea"
             :rows="3"
             placeholder="请输入心跳包内容"
@@ -182,6 +182,12 @@ const form = ref({
 const isConnecting = ref(false)
 const lastHeartbeatFormat = ref<'string' | 'hex'>('string')  // 记录心跳包上次的格式
 
+// HEX模式下的心跳内容原始数据存储（不包含空格）
+const rawHeartbeatContent = ref('')
+
+// 心跳内容的显示数据（用于 v-model）
+const heartbeatDisplayContent = ref('')
+
 const connectionStatus = computed(() => connectionStore.connectionStatus)
 
 const statusText = computed(() => {
@@ -236,31 +242,42 @@ const handleHeartbeatInput = (value: string) => {
   if (form.value.heartbeat.format === 'hex') {
     // 在HEX模式下，只保留有效的HEX字符
     const cleaned = DataFormatter.sanitizeHexInput(value)
+    // 更新原始数据
+    rawHeartbeatContent.value = cleaned
     // 立即格式化显示（每两个字符加一个空格）
     const formatted = DataFormatter.formatHexWithSpaces(cleaned)
-    form.value.heartbeat.content = formatted
+    heartbeatDisplayContent.value = formatted
+  } else {
+    // 字符串模式下直接更新显示内容
+    heartbeatDisplayContent.value = value
   }
 }
 
 // 监听心跳包格式变化，自动转换内容
 watch(() => form.value.heartbeat.format, (newFormat, oldFormat) => {
-  if (newFormat !== oldFormat && form.value.heartbeat.content) {
+  if (newFormat !== oldFormat) {
     try {
-      // 转换心跳包内容格式
-      let converted = DataFormatter.convert(form.value.heartbeat.content, oldFormat as DataFormat, newFormat as DataFormat)
-
-      // 如果是切换到HEX格式，需要格式化显示
       if (newFormat === 'hex') {
-        const cleaned = DataFormatter.sanitizeHexInput(converted)
-        converted = DataFormatter.formatHexWithSpaces(cleaned)
+        // 字符串转HEX
+        const currentData = heartbeatDisplayContent.value
+        const converted = DataFormatter.stringToHex(currentData)
+        // 更新原始数据和显示数据
+        rawHeartbeatContent.value = DataFormatter.sanitizeHexInput(converted)
+        heartbeatDisplayContent.value = DataFormatter.formatHexWithSpaces(rawHeartbeatContent.value)
+      } else {
+        // HEX转字符串
+        const hexData = rawHeartbeatContent.value
+        const converted = DataFormatter.hexToString(hexData)
+        heartbeatDisplayContent.value = converted
+        rawHeartbeatContent.value = ''
       }
 
-      form.value.heartbeat.content = converted
       lastHeartbeatFormat.value = newFormat
     } catch (error) {
       console.error('Heartbeat format conversion error:', error)
       // 转换失败时清空内容
-      form.value.heartbeat.content = ''
+      heartbeatDisplayContent.value = ''
+      rawHeartbeatContent.value = ''
     }
   }
 })
@@ -289,7 +306,9 @@ const handleConnect = async () => {
     connectionStore.updateHeartbeatConfig({
       enabled: form.value.heartbeat.enabled,
       interval: form.value.heartbeat.interval,
-      content: form.value.heartbeat.content,
+      content: form.value.heartbeat.format === 'hex' && rawHeartbeatContent.value
+        ? rawHeartbeatContent.value
+        : heartbeatDisplayContent.value,
       format: form.value.heartbeat.format
     })
 
@@ -398,6 +417,15 @@ onMounted(() => {
   form.value.protocol = connectionStore.serverConfig.protocol || 'ws'
   form.value.sn = connectionStore.deviceConfig.sn || ('DEV-' + Date.now())
   form.value.heartbeat = { ...connectionStore.heartbeatConfig }
+
+  // 如果心跳格式是HEX，需要格式化显示数据并设置原始数据
+  if (form.value.heartbeat.format === 'hex' && form.value.heartbeat.content) {
+    rawHeartbeatContent.value = DataFormatter.sanitizeHexInput(form.value.heartbeat.content)
+    heartbeatDisplayContent.value = DataFormatter.formatHexWithSpaces(rawHeartbeatContent.value)
+  } else {
+    // 字符串模式直接使用配置内容
+    heartbeatDisplayContent.value = form.value.heartbeat.content || ''
+  }
 
   // 确保所有必要字段都有值，防止按钮被禁用
   if (!form.value.host) form.value.host = 'localhost'

@@ -177,8 +177,23 @@ const handleSend = async () => {
       return
     }
 
-    // 发送数据
-    const success = connectionStore.sendData(sendData.value)
+    // 发送数据 - 根据格式转换数据
+    let dataToSend = sendData.value
+
+    if (sendFormat.value === 'hex') {
+      // 如果选择HEX格式，验证并转换数据
+      const cleanHex = sendData.value.replace(/\s/g, '').replace(/^0x/, '')
+      if (cleanHex.length % 2 !== 0) {
+        throw new Error('十六进制数据位数必须是偶数')
+      }
+      if (!/^[0-9A-Fa-f]*$/.test(cleanHex)) {
+        throw new Error('请输入有效的十六进制数据')
+      }
+      // 十六进制数据直接发送（不需要转换，因为用户输入的就是hex）
+      dataToSend = cleanHex
+    }
+
+    const success = connectionStore.sendData(dataToSend)
     if (success) {
       addLog('send', sendData.value, sendFormat.value)
       ElMessage.success('发送成功')

@@ -127,8 +127,18 @@ export const useConnectionStore = defineStore('connection', () => {
     console.log(`[Heartbeat] Starting heartbeat, interval: ${heartbeatConfig.value.interval}s`)
     heartbeatTimer = setInterval(() => {
       if (connectionStatus.value === 'connected') {
-        console.log('[Heartbeat] Sending heartbeat:', heartbeatConfig.value.content)
-        sendData(heartbeatConfig.value.content)
+        let dataToSend = heartbeatConfig.value.content
+
+        // 根据格式转换数据
+        if (heartbeatConfig.value.format === 'hex') {
+          // 如果选择HEX格式，需要将字符串转换为十六进制
+          dataToSend = heartbeatConfig.value.content.split('')
+            .map(char => char.charCodeAt(0).toString(16).padStart(2, '0'))
+            .join('')
+        }
+
+        console.log('[Heartbeat] Sending heartbeat:', dataToSend)
+        sendData(dataToSend)
       }
     }, heartbeatConfig.value.interval * 1000)
   }

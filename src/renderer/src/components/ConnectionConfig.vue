@@ -81,6 +81,7 @@
             :rows="3"
             placeholder="请输入心跳包内容"
             :disabled="!form.heartbeat.enabled"
+            spellcheck="false"
           />
         </el-form-item>
 

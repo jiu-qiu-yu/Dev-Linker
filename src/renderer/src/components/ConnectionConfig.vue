@@ -69,6 +69,7 @@
               :min="5"
               :max="3600"
               :disabled="!form.heartbeat.enabled || isHeartbeatDisabled"
+              @change="handleIntervalChange"
             />
             <span class="unit">秒</span>
           </div>
@@ -229,6 +230,11 @@ const onProtocolChange = (protocol: 'ws' | 'wss' | 'tcp') => {
     tcp: 18888
   }
   form.value.port = defaultPorts[protocol]
+  // 实时保存服务器配置
+  connectionStore.updateServerConfig({
+    protocol,
+    port: form.value.port
+  })
 }
 
 const generateSN = () => {
@@ -239,7 +245,22 @@ const generateSN = () => {
 const onHeartbeatToggle = (enabled: boolean) => {
   if (enabled && !form.value.heartbeat.content) {
     form.value.heartbeat.content = 'PING'
+    heartbeatDisplayContent.value = 'PING'
   }
+  // 保存配置
+  connectionStore.updateHeartbeatConfig({
+    enabled,
+    content: form.value.heartbeat.content,
+    interval: form.value.heartbeat.interval,
+    format: form.value.heartbeat.format
+  })
+}
+
+const handleIntervalChange = (value: number) => {
+  // 保存间隔配置
+  connectionStore.updateHeartbeatConfig({
+    interval: value
+  })
 }
 
 // 处理心跳包数据输入（HEX模式下过滤并格式化非HEX字符）
@@ -255,49 +276,73 @@ const handleHeartbeatInput = (value: string) => {
     // 同步更新form中的content字段，使用纯字符串（不带空格）进行存储
     // 这样localStorage中存储的是标准格式，避免混淆
     form.value.heartbeat.content = cleaned
+    // 实时保存配置
+    connectionStore.updateHeartbeatConfig({
+      content: cleaned,
+      format: 'hex'
+    })
   } else {
     // 字符串模式下直接更新显示内容
     heartbeatDisplayContent.value = value
     // 同步更新form中的content字段
     form.value.heartbeat.content = value
+    // 实时保存配置
+    connectionStore.updateHeartbeatConfig({
+      content: value,
+      format: 'string'
+    })
   }
 }
 
 // 处理心跳包格式变化 - 用户手动触发
 const handleFormatChange = (newFormat: 'string' | 'hex') => {
   try {
-    const oldFormat = lastHeartbeatFormat.value
+    const oldFormat = form.value.heartbeat.format
 
     if (newFormat === 'hex') {
       // 字符串转HEX：使用当前显示内容作为源数据
-      const currentData = heartbeatDisplayContent.value || form.value.heartbeat.content
-      if (currentData) {
+      const currentData = heartbeatDisplayContent.value || form.value.heartbeat.content || ''
+      if (currentData.trim() || currentData.length > 0) {
         const converted = DataFormatter.stringToHex(currentData)
         // 更新原始数据和显示数据
         rawHeartbeatContent.value = DataFormatter.sanitizeHexInput(converted)
         heartbeatDisplayContent.value = DataFormatter.formatHexWithSpaces(rawHeartbeatContent.value)
         // 存储纯字符串（不带空格）
         form.value.heartbeat.content = DataFormatter.sanitizeHexInput(converted)
+      } else {
+        // 如果没有数据，初始化为空
+        rawHeartbeatContent.value = ''
+        heartbeatDisplayContent.value = ''
+        form.value.heartbeat.content = ''
       }
     } else {
       // HEX转字符串：使用rawHeartbeatContent作为源数据
-      const hexData = rawHeartbeatContent.value || form.value.heartbeat.content
+      const hexData = rawHeartbeatContent.value || form.value.heartbeat.content || ''
       if (hexData) {
         const converted = DataFormatter.hexToString(hexData)
         heartbeatDisplayContent.value = converted
         rawHeartbeatContent.value = ''
         // 同步更新form中的content字段
         form.value.heartbeat.content = converted
+      } else {
+        // 如果没有数据，初始化为空
+        heartbeatDisplayContent.value = ''
+        rawHeartbeatContent.value = ''
+        form.value.heartbeat.content = ''
       }
     }
 
+    // 更新格式并保存配置
+    form.value.heartbeat.format = newFormat
     lastHeartbeatFormat.value = newFormat
+    connectionStore.updateHeartbeatConfig({
+      format: newFormat,
+      content: form.value.heartbeat.content
+    })
   } catch (error) {
     console.error('Heartbeat format conversion error:', error)
-    // 转换失败时清空内容
-    heartbeatDisplayContent.value = ''
-    rawHeartbeatContent.value = ''
-    form.value.heartbeat.content = ''
+    ElMessage.error('格式转换失败：' + (error as Error).message)
+    // 转换失败时保持原有数据，不清空
   }
 }
 
@@ -462,6 +507,31 @@ onMounted(() => {
   if (!form.value.port) form.value.port = 18080
   if (!form.value.sn || form.value.sn.trim() === '') {
     form.value.sn = 'DEV-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9).toUpperCase()
+  }
+
+  console.log('[ConnectionConfig] Config loaded:', {
+    heartbeat: savedHeartbeat,
+    displayContent: heartbeatDisplayContent.value,
+    rawContent: rawHeartbeatContent.value
+  })
+})
+
+// 监听表单字段变化，实时保存配置
+watch(() => form.value.host, (newValue) => {
+  if (newValue) {
+    connectionStore.updateServerConfig({ host: newValue })
+  }
+})
+
+watch(() => form.value.port, (newValue) => {
+  if (newValue) {
+    connectionStore.updateServerConfig({ port: newValue })
+  }
+})
+
+watch(() => form.value.sn, (newValue) => {
+  if (newValue && newValue.trim()) {
+    connectionStore.updateDeviceConfig({ sn: newValue })
   }
 })
 </script>

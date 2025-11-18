@@ -44,8 +44,8 @@ export class DataFormatter {
       if (i + 1 < cleanHex.length) {
         bytes.push(parseInt(cleanHex.substr(i, 2), 16))
       } else {
-        // 奇数位时，用0填充
-        bytes.push(parseInt(cleanHex.substr(i, 1) + '0', 16))
+        // 奇数位时，高位补0（如 'D' -> '0D'）
+        bytes.push(parseInt('0' + cleanHex.substr(i, 1), 16))
       }
     }
 

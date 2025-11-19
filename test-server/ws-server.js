@@ -31,21 +31,14 @@ wss.on('connection', (ws, req) => {
       const hexString = data.toString('hex').toUpperCase()
       // 格式化HEX显示（每两个字符加一个空格）
       const formattedHex = hexString.match(/.{1,2}/g).join(' ')
-      console.log(`[WS Server] Received: ${formattedHex}`)
+      console.log(`[WS Server] Received(HEX): ${formattedHex}`)
 
       // 返回二进制数据的echo
       ws.send(data, { binary: true })
     } else {
-      // 文本数据（字符串模式发送），转换为ASCII的HEX值显示
+      // 文本数据（字符串模式发送），直接显示原始字符串
       const receivedData = data.toString('utf8')
-      // 将每个字符转换为HEX值
-      const asciiBytes = Buffer.from(receivedData, 'utf8')
-      const hexValues = []
-      for (let i = 0; i < asciiBytes.length; i++) {
-        hexValues.push(asciiBytes[i].toString(16).toUpperCase().padStart(2, '0'))
-      }
-      const formattedHex = hexValues.join(' ')
-      console.log(`[WS Server] Received(str): ${formattedHex}`)
+      console.log(`[0] [WS Server] Received(str):${receivedData}`)
 
       // 原样返回接收到的数据
       ws.send(JSON.stringify({

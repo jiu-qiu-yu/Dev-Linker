@@ -42,13 +42,24 @@
                 </div>
               </template>
 
-              <div v-if="form.heartbeat.enabled" class="heartbeat-options">
+              <!-- 连接前显示心跳包详细配置 -->
+              <div v-if="form.heartbeat.enabled && !isHeartbeatDisabled" class="heartbeat-options">
                 <el-form-item label="间隔 (秒)">
-                  <el-input-number v-model="form.heartbeat.interval" :min="1" size="small" style="width: 100%" />
+                  <el-input-number
+                    v-model="form.heartbeat.interval"
+                    :min="1"
+                    size="small"
+                    style="width: 100%"
+                    @change="handleIntervalChange"
+                  />
                 </el-form-item>
 
                 <el-form-item label="格式">
-                  <el-radio-group v-model="form.heartbeat.format" size="small" @change="handleFormatChange">
+                  <el-radio-group
+                    v-model="form.heartbeat.format"
+                    size="small"
+                    @change="handleFormatChange"
+                  >
                     <el-radio-button label="string">STR</el-radio-button>
                     <el-radio-button label="hex">HEX</el-radio-button>
                   </el-radio-group>
@@ -60,9 +71,24 @@
                     type="textarea"
                     :rows="2"
                     resize="none"
+                    spellcheck="false"
                     @input="handleHeartbeatInput"
                   />
                 </el-form-item>
+              </div>
+
+              <!-- 连接后显示心跳包状态 -->
+              <div v-else-if="form.heartbeat.enabled && isHeartbeatDisabled" class="heartbeat-status">
+                <el-descriptions :column="1" size="small" border>
+                  <el-descriptions-item label="状态">
+                    <el-tag size="small" type="success">已启用</el-tag>
+                  </el-descriptions-item>
+                  <el-descriptions-item label="间隔">{{ form.heartbeat.interval }} 秒</el-descriptions-item>
+                  <el-descriptions-item label="格式">{{ form.heartbeat.format === 'string' ? '字符串' : '十六进制' }}</el-descriptions-item>
+                  <el-descriptions-item label="内容">
+                    <span class="heartbeat-content-display">{{ heartbeatDisplayContent || form.heartbeat.content }}</span>
+                  </el-descriptions-item>
+                </el-descriptions>
               </div>
             </el-card>
           </el-form>
@@ -537,6 +563,21 @@ watch(() => form.value.sn, (newValue) => {
   align-items: center;
   font-size: 14px;
   font-weight: 500;
+}
+
+.heartbeat-options {
+  /* 保持原有样式 */
+}
+
+.heartbeat-status {
+  padding: 10px 0;
+}
+
+.heartbeat-content-display {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  color: #606266;
+  word-break: break-all;
 }
 
 .panel-footer {

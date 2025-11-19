@@ -19,7 +19,7 @@
           </div>
         </div>
 
-        <div :class="isConnectionActive ? 'pointer-events-none select-none' : ''">
+        <div>
           <div v-if="isConnectionActive" class="flex justify-between text-sm pb-2">
             <span class="text-slate-500">设备SN</span>
             <span class="font-mono font-medium text-slate-800">{{ store.deviceConfig.sn }}</span>
@@ -67,7 +67,7 @@
           <el-icon :size="16" class="text-slate-400"><Lock /></el-icon>
         </div>
 
-        <div :class="isConnectionActive ? 'pointer-events-none select-none' : ''">
+        <div>
           <div v-if="store.loginConfig.enabled && !isConnectionActive" class="flex flex-col gap-3">
             <div class="flex gap-2">
               <el-radio-group v-model="store.loginConfig.format" size="small" @change="handleLoginFormatChange">
@@ -125,7 +125,7 @@
           <el-icon :size="16" class="text-slate-400"><Lock /></el-icon>
         </div>
 
-        <div :class="isHeartbeatDisabled ? 'pointer-events-none select-none' : ''">
+        <div>
           <div v-if="store.heartbeatConfig.enabled && !isHeartbeatDisabled" class="flex flex-col gap-3">
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-2">
@@ -181,7 +181,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useConnectionStore } from '@/store/connection'
 import { DataFormatter } from '@/utils/data-formatter'
 import { Refresh, Setting, Lock } from '@element-plus/icons-vue'
@@ -386,6 +386,30 @@ const handleFormatChange = (newFormat: 'string' | 'hex') => {
     ElMessage.error('格式转换失败：' + (error as Error).message)
   }
 }
+
+// [新增] 监听 Store 变化以处理持久化数据的延迟加载
+watch(() => store.loginConfig, (newConfig) => {
+  // 仅当本地显示为空且 Store 有值时同步，避免覆盖用户正在输入的内容
+  if (!loginDisplayContent.value && newConfig.content) {
+    if (newConfig.format === 'hex') {
+       rawLoginContent.value = newConfig.content
+       loginDisplayContent.value = DataFormatter.formatHexWithSpaces(newConfig.content)
+    } else {
+       loginDisplayContent.value = newConfig.content
+    }
+  }
+}, { deep: true, immediate: true }) // immediate 确保组件挂载时如果有值也能执行
+
+watch(() => store.heartbeatConfig, (newConfig) => {
+  if (!heartbeatDisplayContent.value && newConfig.content) {
+    if (newConfig.format === 'hex') {
+      rawHeartbeatContent.value = newConfig.content
+      heartbeatDisplayContent.value = DataFormatter.formatHexWithSpaces(newConfig.content)
+    } else {
+      heartbeatDisplayContent.value = newConfig.content
+    }
+  }
+}, { deep: true, immediate: true })
 
 onMounted(() => {
   // 初始化心跳显示

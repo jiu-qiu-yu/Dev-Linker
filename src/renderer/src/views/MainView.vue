@@ -38,17 +38,6 @@
       </div>
 
       <div class="flex items-center gap-6">
-        <!-- 设备SN显示 -->
-        <div
-          class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-md cursor-pointer hover:border-brand-500 transition-all"
-          @click="copyDeviceSN"
-          :title="'点击复制设备SN: ' + store.deviceConfig.sn"
-        >
-          <el-icon :size="14" class="text-slate-400"><Cpu /></el-icon>
-          <span class="text-xs font-mono font-semibold text-slate-700">{{ store.deviceConfig.sn }}</span>
-          <el-icon :size="12" class="text-slate-400"><DocumentCopy /></el-icon>
-        </div>
-
         <!-- 状态指示器 -->
         <div class="flex items-center gap-2">
           <div
@@ -188,7 +177,7 @@ const handleConnectionAction = async () => {
 const handleConnect = async () => {
   // 1. 先解析地址
   if (!store.parseAddress()) {
-    ElMessage.error('地址格式错误，请检查输入')
+    ElMessage.error({ message: '地址格式错误，请检查输入', duration: 2000 })
     return
   }
 
@@ -207,7 +196,7 @@ const handleConnect = async () => {
         console.log('WebSocket connected')
         store.setConnectionStatus('connected')
         store.setConnectionManager('ws', wsManager)
-        ElMessage.success('WebSocket 连接成功')
+        ElMessage.success({ message: 'WebSocket 连接成功', duration: 2000 })
 
         // 发送登录包
         sendLoginPacket()
@@ -217,13 +206,13 @@ const handleConnect = async () => {
         console.log('WebSocket disconnected')
         store.setConnectionStatus('disconnected')
         store.setConnectionManager('ws', null)
-        ElMessage.info('WebSocket 已断开')
+        ElMessage.info({ message: 'WebSocket 已断开', duration: 2000 })
       }
 
       wsManager.onError = (error) => {
         console.error('WebSocket error:', error)
         store.setConnectionStatus('failed')
-        ElMessage.error('WebSocket 连接失败')
+        ElMessage.error({ message: 'WebSocket 连接失败', duration: 2000 })
       }
 
       wsManager.onMessage = (data) => {
@@ -243,7 +232,7 @@ const handleConnect = async () => {
         console.log('TCP connected')
         store.setConnectionStatus('connected')
         store.setConnectionManager('tcp', tcpSocket)
-        ElMessage.success('TCP 连接成功')
+        ElMessage.success({ message: 'TCP 连接成功', duration: 2000 })
 
         // 发送登录包
         sendLoginPacket()
@@ -253,13 +242,13 @@ const handleConnect = async () => {
         console.log('TCP disconnected')
         store.setConnectionStatus('disconnected')
         store.setConnectionManager('tcp', null)
-        ElMessage.info('TCP 已断开')
+        ElMessage.info({ message: 'TCP 已断开', duration: 2000 })
       }
 
       tcpSocket.onError = (error) => {
         console.error('TCP error:', error)
         store.setConnectionStatus('failed')
-        ElMessage.error('TCP 连接失败: ' + error.message)
+        ElMessage.error({ message: 'TCP 连接失败: ' + error.message, duration: 2000 })
       }
 
       tcpSocket.onData = (data) => {
@@ -276,7 +265,7 @@ const handleConnect = async () => {
   } catch (error) {
     console.error('Connection failed:', error)
     store.setConnectionStatus('failed')
-    ElMessage.error('连接失败: ' + (error as Error).message)
+    ElMessage.error({ message: '连接失败: ' + (error as Error).message, duration: 2000 })
   }
 }
 
@@ -309,17 +298,17 @@ const handleDisconnect = () => {
   }
 
   store.setConnectionStatus('disconnected')
-  ElMessage.info('已断开连接')
+  ElMessage.info({ message: '已断开连接', duration: 2000 })
 }
 
 // 复制设备SN
 const copyDeviceSN = async () => {
   try {
     await navigator.clipboard.writeText(store.deviceConfig.sn)
-    ElMessage.success('设备SN已复制到剪贴板')
+    ElMessage.success({ message: '设备SN已复制到剪贴板', duration: 2000 })
   } catch (error) {
     console.error('复制失败:', error)
-    ElMessage.error('复制失败，请手动复制')
+    ElMessage.error({ message: '复制失败，请手动复制', duration: 2000 })
   }
 }
 

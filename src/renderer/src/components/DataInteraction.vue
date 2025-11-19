@@ -268,7 +268,7 @@ const addLog = (type: LogEntry['type'], content: string, originalFormat: 'string
 
 const handleSend = async () => {
   if (!hasSendData.value) {
-    ElMessage.warning('请输入要发送的数据')
+    ElMessage.warning({ message: '请输入要发送的数据', duration: 2000 })
     return
   }
 
@@ -277,14 +277,14 @@ const handleSend = async () => {
   try {
     // 检查连接状态
     if (connectionStore.connectionStatus !== 'connected') {
-      ElMessage.error('未连接到服务器')
+      ElMessage.error({ message: '未连接到服务器', duration: 2000 })
       addLog('error', '发送失败: 未连接到服务器')
       return
     }
 
     // 检查连接管理器
     if (!connectionStore.wsManager && !connectionStore.tcpSocket) {
-      ElMessage.error('连接管理器未初始化')
+      ElMessage.error({ message: '连接管理器未初始化', duration: 2000 })
       addLog('error', '发送失败: 连接管理器未初始化')
       return
     }
@@ -321,7 +321,7 @@ const handleSend = async () => {
       }
 
       addLog('send', logContent, logFormat)
-      ElMessage.success('发送成功')
+      ElMessage.success({ message: '发送成功', duration: 2000 })
       // 清空数据
       sendData.value = ''
       rawSendData.value = ''
@@ -331,7 +331,7 @@ const handleSend = async () => {
   } catch (error) {
     const errorMsg = (error as Error).message
     addLog('error', '发送失败: ' + errorMsg)
-    ElMessage.error('发送失败: ' + errorMsg)
+    ElMessage.error({ message: '发送失败: ' + errorMsg, duration: 2000 })
   } finally {
     isSending.value = false
   }

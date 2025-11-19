@@ -1,92 +1,77 @@
 <template>
-  <div class="data-interaction">
-    <!-- 数据发送区域 -->
-    <el-card shadow="never" class="send-section">
-      <template #header>
-        <div class="section-header">
-          <span>
-            <el-icon><Promotion /></el-icon>
-            数据发送
-          </span>
-          <el-radio-group v-model="sendFormat" size="small">
-            <el-radio-button label="string">字符串</el-radio-button>
-            <el-radio-button label="hex">十六进制</el-radio-button>
-          </el-radio-group>
-        </div>
-      </template>
-
-      <el-input
-        v-model="sendDataDisplay"
-        type="textarea"
-        :rows="4"
-        :placeholder="sendPlaceholder"
-        :disabled="!canSend"
-        spellcheck="false"
-      />
-
-      <div class="send-actions">
-        <el-button
-          type="primary"
-          :disabled="!canSend || !hasSendData"
-          @click="handleSend"
-          :loading="isSending"
-        >
-          <el-icon><Promotion /></el-icon>
-          发送数据
-        </el-button>
-        <el-button @click="clearSendData">
-          <el-icon><Delete /></el-icon>
-          清空
-        </el-button>
+  <div class="interaction-container">
+    <div class="send-pane">
+      <div class="pane-header">
+        <span class="title">发送数据</span>
+        <el-radio-group v-model="sendFormat" size="small">
+          <el-radio-button label="string">String</el-radio-button>
+          <el-radio-button label="hex">HEX</el-radio-button>
+        </el-radio-group>
       </div>
-    </el-card>
 
-    <!-- 数据接收/日志区域 -->
-    <el-card shadow="never" class="log-section">
-      <template #header>
-        <div class="section-header">
-          <span>
-            <el-icon><Document /></el-icon>
-            接收日志
-          </span>
-          <div class="log-controls">
-            <el-radio-group v-model="logFormat" size="small">
-              <el-radio-button label="string">字符串</el-radio-button>
-              <el-radio-button label="hex">十六进制</el-radio-button>
-            </el-radio-group>
-            <el-button size="small" @click="clearLogs">
-              <el-icon><Delete /></el-icon>
-              清空日志
-            </el-button>
-          </div>
+      <div class="input-area">
+        <el-input
+          v-model="sendDataDisplay"
+          type="textarea"
+          :rows="3"
+          :placeholder="sendPlaceholder"
+          resize="none"
+          class="custom-textarea"
+          spellcheck="false"
+        />
+        <div class="send-tools">
+          <el-button size="small" text @click="clearSendData">清空</el-button>
+          <el-button
+            type="primary"
+            :disabled="!canSend || !hasSendData"
+            :loading="isSending"
+            @click="handleSend"
+          >
+            发送
+          </el-button>
         </div>
-      </template>
+      </div>
+    </div>
 
-      <div class="log-container" ref="logContainer">
+    <div class="log-pane">
+      <div class="pane-header">
+        <span class="title">运行日志</span>
+        <div class="controls">
+          <el-radio-group v-model="logFormat" size="small">
+            <el-radio-button label="string">Str</el-radio-button>
+            <el-radio-button label="hex">Hex</el-radio-button>
+          </el-radio-group>
+          <el-button size="small" circle @click="clearLogs">
+            <el-icon><Delete /></el-icon>
+          </el-button>
+        </div>
+      </div>
+
+      <div class="log-scroll-container" ref="logContainer">
+        <div v-if="logs.length === 0" class="empty-state">
+          暂无日志数据
+        </div>
         <div
           v-for="log in logs"
           :key="log.id"
-          class="log-item"
-          :class="`log-${log.type}`"
+          class="log-row"
+          :class="log.type"
         >
-          <span class="log-time">{{ log.timestamp }}</span>
-          <span class="log-type">{{ getLogTypeText(log.type) }}</span>
-          <span class="log-content">{{ log.content }}</span>
-        </div>
-        <div v-if="logs.length === 0" class="empty-logs">
-          <el-empty description="暂无日志记录" />
+          <span class="time">[{{ log.timestamp }}]</span>
+          <span class="tag" :class="log.type">{{ getLogTypeLabel(log.type) }}</span>
+          <span class="content">{{ log.content }}</span>
         </div>
       </div>
-    </el-card>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { useConnectionStore, LogEntry } from '@/store/connection'
-import { Promotion, Delete, Document } from '@element-plus/icons-vue'
+import { Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { DataFormatter, DataFormat } from '@/utils/data-formatter'
+import { DataFormatter } from '@/utils/data-formatter'
 
 const connectionStore = useConnectionStore()
 
@@ -146,14 +131,9 @@ const logFormat = computed({
   set: (value) => connectionStore.updateDataInteractionConfig({ logFormat: value })
 })
 
-const getLogTypeText = (type: LogEntry['type']) => {
-  const typeMap = {
-    connection: '[连接]',
-    send: '[发送]',
-    receive: '[接收]',
-    error: '[错误]'
-  }
-  return typeMap[type]
+const getLogTypeLabel = (type: string) => {
+  const map: any = { connection: '系统', send: '发送', receive: '接收', error: '错误' }
+  return map[type] || 'INFO'
 }
 
 const generateId = () => {
@@ -353,98 +333,121 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.data-interaction {
+.interaction-container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
   height: 100%;
+  padding: 0; /* 移除 padding，由内部控制 */
 }
 
-.send-section {
-  flex-shrink: 0;
+.send-pane {
+  flex-shrink: 0; /* 不允许压缩 */
+  border-bottom: 1px solid #e4e7ed;
+  background: #fff;
+  padding: 12px 16px;
 }
 
-.section-header {
+.pane-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 8px;
 }
 
-.send-actions {
-  margin-top: 15px;
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #606266;
+}
+
+.input-area {
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  padding: 4px;
+  transition: border-color 0.2s;
+}
+
+.input-area:focus-within {
+  border-color: #409eff;
+}
+
+/* 去掉 Element 输入框的边框，使用外层边框 */
+:deep(.custom-textarea .el-textarea__inner) {
+  border: none;
+  box-shadow: none;
+  padding: 8px;
+  font-family: 'Consolas', monospace;
+}
+
+.send-tools {
   display: flex;
-  gap: 10px;
+  justify-content: flex-end;
+  padding: 4px 8px 0;
+  border-top: 1px dashed #ebeef5;
 }
 
-.log-section {
-  flex: 1;
+.log-pane {
+  flex: 1; /* 自动占据剩余高度 */
   display: flex;
   flex-direction: column;
+  background: #1e1e1e; /* 黑色背景 */
+  min-height: 0; /* 关键：允许 flex 子元素小于内容高度，从而出现滚动条 */
 }
 
-.log-controls {
-  display: flex;
-  align-items: center;
-  gap: 15px;
+.log-pane .pane-header {
+  background: #252526;
+  color: #ccc;
+  padding: 8px 16px;
+  margin-bottom: 0;
+  border-bottom: 1px solid #333;
 }
 
-.log-container {
+.log-pane .title {
+  color: #ccc;
+}
+
+.log-scroll-container {
   flex: 1;
   overflow-y: auto;
-  background: #1e1e1e;
-  color: #d4d4d4;
-  padding: 15px;
-  border-radius: 4px;
+  padding: 10px;
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 13px;
-  line-height: 1.5;
-  max-height: 400px;
-  min-height: 300px;
+  line-height: 1.6;
+  color: #d4d4d4;
 }
 
-.log-item {
-  padding: 4px 8px;
-  margin-bottom: 2px;
-  white-space: pre-wrap;
+.log-row {
+  margin-bottom: 4px;
   word-break: break-all;
-}
-
-.log-connection {
-  color: #4fc3f7;
-}
-
-.log-send {
-  color: #81c784;
-}
-
-.log-receive {
-  color: #ffd54f;
-}
-
-.log-error {
-  color: #e57373;
-}
-
-.log-time {
-  color: #78909c;
-  margin-right: 10px;
-}
-
-.log-type {
-  font-weight: 600;
-  margin-right: 10px;
-  min-width: 60px;
-  display: inline-block;
-}
-
-.log-content {
-  color: inherit;
-}
-
-.empty-logs {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 200px;
+  gap: 8px;
+}
+
+.log-row .time {
+  color: #6a9955;
+  flex-shrink: 0;
+}
+
+.log-row .tag {
+  flex-shrink: 0;
+  font-weight: bold;
+  min-width: 40px;
+  text-align: center;
+}
+
+.log-row .tag.send { color: #569cd6; }
+.log-row .tag.receive { color: #ce9178; }
+.log-row .tag.error { color: #f44747; }
+.log-row .tag.connection { color: #c586c0; }
+
+.log-row .content {
+  color: #d4d4d4;
+}
+
+.empty-state {
+  color: #555;
+  text-align: center;
+  margin-top: 40px;
+  font-style: italic;
 }
 </style>

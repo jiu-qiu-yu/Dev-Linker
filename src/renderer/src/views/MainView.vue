@@ -1,58 +1,33 @@
 <template>
-  <div class="main-container">
-    <el-container>
-      <!-- 顶部导航 -->
-      <el-header class="app-header">
-        <div class="header-content">
-          <h1 class="app-title">
-            <el-icon><Connection /></el-icon>
-            Dev-Linker 虚拟4G模块模拟器
-          </h1>
-          <div class="header-actions">
-            <el-button-group>
-              <el-button type="primary" @click="showAbout = true">
-                <el-icon><InfoFilled /></el-icon>
-                关于
-              </el-button>
-            </el-button-group>
-          </div>
-        </div>
-      </el-header>
-
-      <!-- 主内容区域 -->
-      <el-container>
-        <!-- 连接配置面板 -->
-        <el-aside width="350px" class="config-panel">
-          <ConnectionConfig />
-        </el-aside>
-
-        <!-- 数据交互面板 -->
-        <el-main class="data-panel">
-          <DataInteraction />
-        </el-main>
-      </el-container>
-    </el-container>
-
-    <!-- 关于对话框 -->
-    <el-dialog
-      v-model="showAbout"
-      title="关于 Dev-Linker"
-      width="500px"
-    >
-      <div class="about-content">
-        <p><strong>版本：</strong> 1.0.0</p>
-        <p><strong>描述：</strong> 虚拟4G模块模拟器 - 物联网开发调试工具</p>
-        <p><strong>功能：</strong></p>
-        <ul>
-          <li>支持 WebSocket 和 TCP 协议连接</li>
-          <li>模拟4G模块网络通信</li>
-          <li>实时数据收发测试</li>
-          <li>本地开发环境调试</li>
-        </ul>
+  <div class="layout-container">
+    <header class="app-header">
+      <div class="brand">
+        <el-icon :size="20"><Connection /></el-icon>
+        <span class="app-name">Dev-Linker</span>
+        <el-tag size="small" effect="plain" class="version-tag">v1.2.2</el-tag>
       </div>
-      <template #footer>
-        <el-button @click="showAbout = false">确定</el-button>
-      </template>
+      <div class="window-actions">
+        <el-button link @click="showAbout = true">
+          <el-icon><InfoFilled /></el-icon>
+        </el-button>
+      </div>
+    </header>
+
+    <div class="app-body">
+      <aside class="sidebar">
+        <ConnectionConfig />
+      </aside>
+
+      <main class="content-area">
+        <DataInteraction />
+      </main>
+    </div>
+
+    <el-dialog v-model="showAbout" title="关于 Dev-Linker" width="400px">
+      <div class="about-content">
+        <p><strong>Dev-Linker</strong></p>
+        <p>虚拟4G模块模拟器 - 物联网开发调试工具</p>
+      </div>
     </el-dialog>
   </div>
 </template>
@@ -67,56 +42,62 @@ const showAbout = ref(false)
 </script>
 
 <style scoped>
-.main-container {
-  width: 100%;
-  height: 100vh;
+.layout-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh; /* 占满视口高度 */
+  background-color: #fff;
 }
 
 .app-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.header-content {
+  height: 48px; /* 缩小头部高度，节省空间 */
+  background-color: #2b303b; /* 深色专业风格 */
+  color: #fff;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  height: 100%;
-  padding: 0 20px;
+  justify-content: space-between;
+  padding: 0 16px;
+  flex-shrink: 0; /* 防止头部被压缩 */
+  -webkit-app-region: drag; /* 允许拖拽窗口 */
 }
 
-.app-title {
-  font-size: 20px;
-  margin: 0;
+.brand {
   display: flex;
   align-items: center;
   gap: 10px;
+  font-weight: 600;
 }
 
-.config-panel {
-  background: white;
+.version-tag {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: #aaa;
+}
+
+.window-actions {
+  -webkit-app-region: no-drag;
+}
+
+.app-body {
+  flex: 1; /* 占据剩余高度 */
+  display: flex;
+  overflow: hidden; /* 防止内部溢出导致整体滚动 */
+}
+
+.sidebar {
+  width: 320px; /* 固定宽度 */
+  background-color: #f8f9fa;
   border-right: 1px solid #e4e7ed;
-  padding: 20px;
-  overflow-y: auto;
-  overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  overflow: hidden;
 }
 
-.data-panel {
-  background: #f5f5f5;
-  padding: 20px;
-  overflow-y: auto;
-}
-
-.about-content {
-  line-height: 1.8;
-}
-
-.about-content ul {
-  margin-left: 20px;
-  margin-top: 10px;
+.content-area {
+  flex: 1; /* 占据剩余宽度 */
+  background-color: #fff;
+  overflow: hidden; /* 内部组件自己处理滚动 */
+  display: flex;
+  flex-direction: column;
 }
 </style>

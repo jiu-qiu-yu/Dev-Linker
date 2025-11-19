@@ -1,146 +1,103 @@
 <template>
-  <div class="connection-config">
-    <h2 class="panel-title">
-      <el-icon><Setting /></el-icon>
-      连接配置
-    </h2>
+  <div class="config-panel">
+    <div class="panel-header">
+      <h3>连接配置</h3>
+    </div>
 
-    <el-form :model="form" label-width="80px" size="default">
-      <!-- 服务器配置 -->
-      <el-card shadow="never" class="config-section">
-        <template #header>
-          <span>服务器配置</span>
-        </template>
+    <div class="config-scroll-area">
+      <el-scrollbar>
+        <div class="form-content">
+          <el-form :model="form" label-position="top" size="default">
+            <el-card shadow="never" class="config-card">
+              <el-form-item label="协议 & 地址">
+                <el-input v-model="form.host" placeholder="IP/域名">
+                  <template #prepend>
+                    <el-select v-model="form.protocol" style="width: 90px" @change="onProtocolChange">
+                      <el-option label="WS" value="ws" />
+                      <el-option label="WSS" value="wss" />
+                      <el-option label="TCP" value="tcp" />
+                    </el-select>
+                  </template>
+                </el-input>
+              </el-form-item>
 
-        <el-form-item label="协议类型">
-          <el-select v-model="form.protocol" placeholder="选择协议" @change="onProtocolChange">
-            <el-option label="WebSocket (ws://)" value="ws" />
-            <el-option label="WebSocket Secure (wss://)" value="wss" />
-            <el-option label="TCP" value="tcp" />
-          </el-select>
-        </el-form-item>
+              <el-form-item label="端口">
+                <el-input-number v-model="form.port" :min="1" :max="65535" style="width: 100%" controls-position="right" />
+              </el-form-item>
 
-        <el-form-item label="服务器地址">
-          <el-input
-            v-model="form.host"
-            placeholder="localhost 或 IP 地址"
-          >
-            <template #prepend>
-              <el-icon><Location /></el-icon>
-            </template>
-          </el-input>
-        </el-form-item>
+              <el-form-item label="设备 SN">
+                <el-input v-model="form.sn" placeholder="唯一标识">
+                  <template #append>
+                    <el-button @click="generateSN"><el-icon><Refresh /></el-icon></el-button>
+                  </template>
+                </el-input>
+              </el-form-item>
+            </el-card>
 
-        <el-form-item label="端口">
-          <el-input-number
-            v-model="form.port"
-            :min="1"
-            :max="65535"
-            style="width: 100%"
-          />
-        </el-form-item>
+            <el-card shadow="never" class="config-card">
+              <template #header>
+                <div class="card-header-row">
+                  <span>心跳包</span>
+                  <el-switch v-model="form.heartbeat.enabled" size="small" :disabled="isHeartbeatDisabled" @change="onHeartbeatToggle" />
+                </div>
+              </template>
 
-        <!-- SN 设备标识 -->
-        <el-form-item label="设备SN">
-          <el-input
-            v-model="form.sn"
-            placeholder="请输入设备唯一标识"
-          >
-            <template #append>
-              <el-button @click="generateSN" :icon="Refresh">生成</el-button>
-            </template>
-          </el-input>
-        </el-form-item>
-      </el-card>
+              <div v-if="form.heartbeat.enabled" class="heartbeat-options">
+                <el-form-item label="间隔 (秒)">
+                  <el-input-number v-model="form.heartbeat.interval" :min="1" size="small" style="width: 100%" />
+                </el-form-item>
 
-      <!-- 心跳包配置 -->
-      <el-card shadow="never" class="config-section">
-        <template #header>
-          <div class="card-header">
-            <span>心跳包配置</span>
-            <el-switch v-model="form.heartbeat.enabled" @change="onHeartbeatToggle" :disabled="isHeartbeatDisabled" />
-          </div>
-        </template>
+                <el-form-item label="格式">
+                  <el-radio-group v-model="form.heartbeat.format" size="small" @change="handleFormatChange">
+                    <el-radio-button label="string">STR</el-radio-button>
+                    <el-radio-button label="hex">HEX</el-radio-button>
+                  </el-radio-group>
+                </el-form-item>
 
-        <el-form-item label="发送间隔">
-          <div class="heartbeat-controls">
-            <el-input-number
-              v-model="form.heartbeat.interval"
-              :min="5"
-              :max="3600"
-              :disabled="!form.heartbeat.enabled || isHeartbeatDisabled"
-              @change="handleIntervalChange"
-            />
-            <span class="unit">秒</span>
-          </div>
-        </el-form-item>
+                <el-form-item label="内容">
+                  <el-input
+                    v-model="heartbeatDisplayContent"
+                    type="textarea"
+                    :rows="2"
+                    resize="none"
+                    @input="handleHeartbeatInput"
+                  />
+                </el-form-item>
+              </div>
+            </el-card>
+          </el-form>
+        </div>
+      </el-scrollbar>
+    </div>
 
-        <el-form-item label="心跳内容">
-          <el-input
-            v-model="heartbeatDisplayContent"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入心跳包内容"
-            :disabled="!form.heartbeat.enabled || isHeartbeatDisabled"
-            spellcheck="false"
-            @input="handleHeartbeatInput"
-          />
-        </el-form-item>
+    <div class="panel-footer">
+      <el-button
+        v-if="connectionStatus !== 'connected'"
+        type="primary"
+        size="large"
+        class="action-btn"
+        :loading="isConnecting"
+        :disabled="!canConnect"
+        @click="handleConnect"
+      >
+        {{ isConnecting ? '连接中...' : '连接服务器' }}
+      </el-button>
 
-        <el-form-item label="数据格式">
-          <el-radio-group v-model="form.heartbeat.format" :disabled="!form.heartbeat.enabled || isHeartbeatDisabled" @change="handleFormatChange">
-            <el-radio label="string">字符串 (String)</el-radio>
-            <el-radio label="hex">十六进制 (Hex)</el-radio>
-          </el-radio-group>
-        </el-form-item>
-      </el-card>
+      <el-button
+        v-else
+        type="danger"
+        size="large"
+        class="action-btn"
+        @click="handleDisconnect"
+      >
+        断开连接
+      </el-button>
 
-      <!-- 连接控制 -->
-      <div class="connection-actions">
-        <el-button
-          type="primary"
-          size="large"
-          :loading="isConnecting"
-          :disabled="!canConnect"
-          @click="handleConnect"
-          style="width: 100%"
-        >
-          <template v-if="connectionStatus === 'connected'">
-            <el-icon><CircleCheck /></el-icon>
-            已连接
-          </template>
-          <template v-else-if="isConnecting">
-            <el-icon class="is-loading"><Loading /></el-icon>
-            连接中...
-          </template>
-          <template v-else>
-            <el-icon><Connection /></el-icon>
-            连接服务器
-          </template>
-        </el-button>
-
-        <el-button
-          v-if="connectionStatus === 'connected'"
-          type="danger"
-          size="large"
-          @click="handleDisconnect"
-          style="width: 100%; margin-top: 10px"
-        >
-          <el-icon><SwitchButton /></el-icon>
-          断开连接
-        </el-button>
+      <div class="status-bar" :class="connectionStatus">
+        <div class="status-dot"></div>
+        <span>{{ statusText }}</span>
       </div>
-
-      <!-- 连接状态 -->
-      <el-alert
-        v-if="connectionStatus !== 'disconnected'"
-        :title="statusText"
-        :type="statusType"
-        show-icon
-        :closable="false"
-        style="margin-top: 15px"
-      />
-    </el-form>
+    </div>
   </div>
 </template>
 
@@ -149,16 +106,8 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useConnectionStore } from '@/store/connection'
 import { WebSocketManager } from '@/utils/websocket'
 import { TCPSocket } from '@/utils/tcp'
-import { DataFormatter, DataFormat } from '@/utils/data-formatter'
-import {
-  Setting,
-  Location,
-  Refresh,
-  Connection,
-  CircleCheck,
-  Loading,
-  SwitchButton
-} from '@element-plus/icons-vue'
+import { DataFormatter } from '@/utils/data-formatter'
+import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 const connectionStore = useConnectionStore()
@@ -537,45 +486,91 @@ watch(() => form.value.sn, (newValue) => {
 </script>
 
 <style scoped>
-.connection-config {
-  width: 100%;
+.config-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding-bottom: 20px; /* 确保底部内容有足够边距 */
+  background: #f9f9f9;
 }
 
-.panel-title {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.panel-header {
+  padding: 16px;
+  border-bottom: 1px solid #e4e7ed;
+  background: #fff;
 }
 
-.config-section {
-  margin-bottom: 20px;
+.panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #303133;
 }
 
-.card-header {
+.config-scroll-area {
+  flex: 1;
+  overflow: hidden; /* 内部 scrollbar 滚动 */
+}
+
+.form-content {
+  padding: 16px;
+}
+
+.config-card {
+  margin-bottom: 16px;
+  border: 1px solid #ebeef5;
+}
+
+/* 压缩 Form Item 间距，让界面更紧凑 */
+:deep(.el-form-item) {
+  margin-bottom: 16px;
+}
+:deep(.el-card__header) {
+  padding: 10px 15px;
+  background: #fafafa;
+}
+:deep(.el-card__body) {
+  padding: 15px;
+}
+
+.card-header-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  font-size: 14px;
+  font-weight: 500;
 }
 
-.heartbeat-controls {
+.panel-footer {
+  padding: 16px;
+  background: #fff;
+  border-top: 1px solid #e4e7ed;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+  z-index: 10;
+}
+
+.action-btn {
+  width: 100%;
+  font-weight: 600;
+}
+
+.status-bar {
+  margin-top: 10px;
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.unit {
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
   color: #909399;
-  font-size: 14px;
 }
 
-.connection-actions {
-  margin-top: 20px;
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #909399;
 }
+
+.status-bar.connected .status-dot { background: #67c23a; }
+.status-bar.connected { color: #67c23a; }
+.status-bar.connecting .status-dot { background: #e6a23c; }
+.status-bar.failed .status-dot { background: #f56c6c; }
 </style>

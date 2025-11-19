@@ -25,18 +25,36 @@ wss.on('connection', (ws, req) => {
   }))
 
   // 监听消息
-  ws.on('message', (data) => {
-    // 不进行任何处理，直接显示原始接收的数据
-    const receivedData = data.toString('utf8')
-    console.log(`[WS Server] Received: ${receivedData}`)
+  ws.on('message', (data, isBinary) => {
+    if (isBinary) {
+      // 二进制数据（HEX模式发送），转换为HEX显示
+      const hexString = data.toString('hex').toUpperCase()
+      // 格式化HEX显示（每两个字符加一个空格）
+      const formattedHex = hexString.match(/.{1,2}/g).join(' ')
+      console.log(`[WS Server] Received: ${formattedHex}`)
 
-    // 原样返回接收到的数据
-    ws.send(JSON.stringify({
-      type: 'echo',
-      data: receivedData,
-      timestamp: Date.now(),
-      isBinary: false
-    }))
+      // 返回二进制数据的echo
+      ws.send(data, { binary: true })
+    } else {
+      // 文本数据（字符串模式发送），转换为ASCII的HEX值显示
+      const receivedData = data.toString('utf8')
+      // 将每个字符转换为HEX值
+      const asciiBytes = Buffer.from(receivedData, 'utf8')
+      const hexValues = []
+      for (let i = 0; i < asciiBytes.length; i++) {
+        hexValues.push(asciiBytes[i].toString(16).toUpperCase().padStart(2, '0'))
+      }
+      const formattedHex = hexValues.join(' ')
+      console.log(`[WS Server] Received(str): ${formattedHex}`)
+
+      // 原样返回接收到的数据
+      ws.send(JSON.stringify({
+        type: 'echo',
+        data: receivedData,
+        timestamp: Date.now(),
+        isBinary: false
+      }))
+    }
 
     // 随机发送测试数据
     setTimeout(() => {

@@ -42,6 +42,7 @@ export class WebSocketManager {
 
         this.ws.onmessage = (event) => {
           console.log('WebSocket message received:', event.data)
+          // 直接传递接收到的数据，不做任何处理
           this.onMessage?.(event.data)
         }
 
@@ -77,15 +78,13 @@ export class WebSocketManager {
 
     try {
       if (data instanceof Uint8Array) {
-        // 如果是Uint8Array，转换为十六进制字符串发送（不带空格）
-        // 这样服务器就能正确显示为HEX格式
-        const hexString = Array.from(data)
-          .map(byte => byte.toString(16).padStart(2, '0'))
-          .join('')
-        console.log('[WebSocket] Sending HEX as string:', hexString)
-        this.ws.send(hexString)
+        // 如果是Uint8Array，发送二进制数据（HEX格式）
+        console.log('[WebSocket] Sending binary data (HEX format), length:', data.length)
+        // 将Uint8Array转换为ArrayBuffer发送
+        this.ws.send(data.buffer)
       } else {
-        // 字符串直接发送
+        // 字符串数据直接发送
+        console.log('[WebSocket] Sending string data:', data)
         this.ws.send(data)
       }
       return true

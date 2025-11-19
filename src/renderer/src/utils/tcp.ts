@@ -70,14 +70,16 @@ export class TCPSocket {
     try {
       console.log('[TCP] Sending data:', data)
 
-      // 如果是Uint8Array，转换为hex字符串（不带空格）
+      // 如果是Uint8Array，转换为hex字符串（大写，不带空格）
       let dataToSend: string
       if (data instanceof Uint8Array) {
-        // 转换为hex字符串（每字节2位十六进制）
-        dataToSend = Array.from(data)
+        // 转换为hex字符串（每字节2位十六进制，大写）
+        const hexString = Array.from(data)
           .map(byte => byte.toString(16).padStart(2, '0'))
           .join('')
-        console.log('[TCP] Sending HEX as string:', dataToSend)
+          .toUpperCase()
+        dataToSend = hexString
+        console.log('[TCP] Sending HEX data:', dataToSend)
       } else {
         dataToSend = data.toString()
       }

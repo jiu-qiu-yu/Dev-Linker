@@ -20,11 +20,12 @@ server.on('connection', (socket) => {
   socket.write(`Welcome! You are connected from ${clientIP}:${clientPort}\r\n`)
 
   socket.on('data', (data) => {
-    const message = data.toString().trim()
-    console.log(`[TCP Server] Received: ${message}`)
+    // 直接显示原始接收的数据
+    const str = data.toString('utf8')
+    console.log(`[TCP Server] Received: ${str}`)
 
     // 回显消息
-    socket.write(`Echo: ${message}\r\n`)
+    socket.write(`Echo: ${data}\r\n`)
 
     // 随机发送测试数据
     setTimeout(() => {
@@ -32,7 +33,7 @@ server.on('connection', (socket) => {
     }, 1000)
 
     // 心跳响应
-    if (message === 'PING') {
+    if (data.toString() === 'PING') {
       socket.write('PONG\r\n')
     }
   })

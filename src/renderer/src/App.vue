@@ -15,26 +15,53 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden; /* 禁止 body 滚动 */
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #app {
   width: 100%;
   height: 100%;
-  background-color: #f5f7fa; /* 更柔和的背景色 */
+  background-color: #0d1117; /* GitHub深色主题背景 */
 }
 
-/* 滚动条美化 (Webkit) */
+/* 滚动条美化 (Webkit) - GitHub风格 */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #c0c4cc;
-  border-radius: 3px;
+  background: #30363d;
+  border-radius: 5px;
+  border: 2px solid #0d1117;
+  transition: background 0.2s;
 }
+
+::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #0d1117;
+}
+
+/* Firefox滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #30363d #0d1117;
+}
+
+/* 全局文本选择颜色 */
+::selection {
+  background: rgba(88, 166, 255, 0.3);
+  color: #e6edf3;
+}
+
+/* 禁用拖拽选择 */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
 }
 </style>

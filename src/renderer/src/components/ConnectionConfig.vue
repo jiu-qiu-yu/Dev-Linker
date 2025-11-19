@@ -1,18 +1,11 @@
 <template>
   <div class="config-container">
     <div class="config-group">
-      <div class="group-title">设备标识</div>
-      <el-input v-model="store.deviceConfig.sn" placeholder="Device SN" @change="handleSNChange">
-        <template #prepend>SN</template>
-        <template #append>
-          <el-button @click="generateSN"><el-icon><Refresh /></el-icon></el-button>
-        </template>
-      </el-input>
-    </div>
-
-    <div class="config-group">
       <div class="group-header">
-        <div class="group-title">登录/注册包</div>
+        <div class="group-title">
+          <el-icon :size="14"><User /></el-icon>
+          <span>登录/注册包</span>
+        </div>
         <el-switch
           v-model="store.loginConfig.enabled"
           size="small"
@@ -45,7 +38,10 @@
 
     <div class="config-group">
       <div class="group-header">
-        <div class="group-title">心跳维持</div>
+        <div class="group-title">
+          <el-icon :size="14"><Timer /></el-icon>
+          <span>心跳维持</span>
+        </div>
         <el-switch
           v-model="store.heartbeatConfig.enabled"
           size="small"
@@ -92,6 +88,36 @@
         </el-descriptions>
       </div>
     </div>
+
+    <!-- 设备SN管理区域 - 新增 -->
+    <div class="config-group">
+      <div class="group-header">
+        <div class="group-title">
+          <el-icon :size="14"><Setting /></el-icon>
+          <span>设备管理</span>
+        </div>
+      </div>
+      <div class="device-management">
+        <el-input
+          v-model="store.deviceConfig.sn"
+          placeholder="Device SN"
+          @change="handleSNChange"
+          size="small"
+          :disabled="isConnectionActive"
+        >
+          <template #prepend>SN</template>
+          <template #append>
+            <el-button @click="generateSN" size="small" :disabled="isConnectionActive">
+              <el-icon><Refresh /></el-icon>
+            </el-button>
+          </template>
+        </el-input>
+        <div v-if="isConnectionActive" class="lock-hint">
+          <el-icon :size="12"><Lock /></el-icon>
+          <span>连接中，SN已锁定</span>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -99,7 +125,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useConnectionStore } from '@/store/connection'
 import { DataFormatter } from '@/utils/data-formatter'
-import { Refresh } from '@element-plus/icons-vue'
+import { Refresh, User, Timer, Setting, Lock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 const store = useConnectionStore()
@@ -325,36 +351,44 @@ onMounted(() => {
 
 <style scoped>
 .config-container {
-  padding: 16px;
-  color: #ccc;
+  padding: 12px;
+  color: #e6edf3;
   height: 100%;
   overflow-y: auto;
 }
 
 .config-group {
-  margin-bottom: 20px;
-  background: #333;
+  margin-bottom: 12px;
+  background: #1c2128;
   padding: 12px;
-  border-radius: 4px;
+  border-radius: 6px;
+  border: 1px solid #30363d;
+  transition: all 0.2s;
+}
+
+.config-group:hover {
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.1);
 }
 
 .group-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .group-title {
-  font-size: 12px;
-  font-weight: bold;
-  color: #aaa;
-  text-transform: uppercase;
-  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e6edf3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.group-header .group-title {
-  margin-bottom: 0;
+.group-title .el-icon {
+  color: #58a6ff;
 }
 
 .compact-form {
@@ -371,7 +405,8 @@ onMounted(() => {
 
 .label {
   font-size: 12px;
-  color: #888;
+  color: #7d8590;
+  font-weight: 500;
 }
 
 .login-status {
@@ -383,7 +418,7 @@ onMounted(() => {
 
 .content-preview {
   font-family: 'Consolas', monospace;
-  color: #888;
+  color: #7d8590;
   font-size: 12px;
   word-break: break-all;
 }
@@ -395,97 +430,138 @@ onMounted(() => {
 .heartbeat-content-display {
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 12px;
-  color: #888;
+  color: #7d8590;
   word-break: break-all;
+}
+
+.device-management {
+  margin-top: 8px;
+}
+
+.lock-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #7d8590;
+  font-style: italic;
+}
+
+.lock-hint .el-icon {
+  color: #d29922;
 }
 
 /* 深色主题覆盖 Element Plus 样式 */
 :deep(.el-input__wrapper),
 :deep(.el-textarea__inner) {
-  background-color: #1e1e1e;
+  background-color: #0d1117;
   box-shadow: none;
-  border: 1px solid #444;
-  color: #fff;
+  border: 1px solid #30363d;
+  color: #e6edf3;
+  transition: all 0.2s;
 }
 
 :deep(.el-input__wrapper:hover),
 :deep(.el-textarea__inner:hover) {
-  border-color: #409eff;
+  border-color: #58a6ff;
+}
+
+:deep(.el-input__wrapper.is-focus),
+:deep(.el-textarea__inner:focus) {
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
 }
 
 :deep(.el-input__inner) {
-  color: #fff;
+  color: #e6edf3;
 }
 
 :deep(.el-input__inner::placeholder),
 :deep(.el-textarea__inner::placeholder) {
-  color: #666;
+  color: #484f58;
 }
 
 :deep(.el-input-group__prepend) {
-  background-color: #2a2a2a;
-  border-color: #444;
-  color: #888;
+  background-color: #21262d;
+  border-color: #30363d;
+  color: #7d8590;
 }
 
 :deep(.el-input-group__append) {
-  background-color: #2a2a2a;
-  border-color: #444;
+  background-color: #21262d;
+  border-color: #30363d;
 }
 
 :deep(.el-input-group__append .el-button) {
-  color: #888;
+  color: #7d8590;
+  background: transparent;
+  border: none;
 }
 
 :deep(.el-input-group__append .el-button:hover) {
-  color: #409eff;
+  color: #58a6ff;
 }
 
 :deep(.el-radio-button__inner) {
-  background-color: #2a2a2a;
-  border-color: #444;
-  color: #888;
+  background-color: #21262d;
+  border-color: #30363d;
+  color: #7d8590;
+  transition: all 0.2s;
+}
+
+:deep(.el-radio-button__inner:hover) {
+  color: #58a6ff;
 }
 
 :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-  background-color: #409eff;
-  border-color: #409eff;
+  background-color: #238636;
+  border-color: #238636;
   color: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 :deep(.el-input-number) {
-  --el-input-bg-color: #1e1e1e;
-  --el-input-border-color: #444;
-  --el-input-text-color: #fff;
+  --el-input-bg-color: #0d1117;
+  --el-input-border-color: #30363d;
+  --el-input-text-color: #e6edf3;
+  --el-input-hover-border-color: #58a6ff;
 }
 
 :deep(.el-switch) {
-  --el-switch-off-color: #444;
+  --el-switch-off-color: #30363d;
+  --el-switch-on-color: #238636;
+  --el-switch-border-color: #30363d;
+}
+
+:deep(.el-switch.is-checked) {
+  --el-switch-on-color: #238636;
 }
 
 :deep(.el-descriptions) {
-  --el-descriptions-table-border: 1px solid #444;
+  --el-descriptions-table-border: 1px solid #30363d;
 }
 
 :deep(.el-descriptions__label) {
-  background-color: #2a2a2a;
-  color: #888;
+  background-color: #21262d;
+  color: #7d8590;
+  font-weight: 500;
 }
 
 :deep(.el-descriptions__content) {
-  background-color: #1e1e1e;
-  color: #ccc;
+  background-color: #0d1117;
+  color: #e6edf3;
 }
 
 :deep(.el-tag--info) {
-  background-color: #333;
-  border-color: #444;
-  color: #888;
+  background-color: rgba(88, 166, 255, 0.15);
+  border-color: rgba(88, 166, 255, 0.3);
+  color: #58a6ff;
 }
 
 :deep(.el-tag--success) {
-  background-color: rgba(103, 194, 58, 0.2);
-  border-color: rgba(103, 194, 58, 0.4);
-  color: #67c23a;
+  background-color: rgba(63, 185, 80, 0.15);
+  border-color: rgba(63, 185, 80, 0.3);
+  color: #3fb950;
 }
 </style>

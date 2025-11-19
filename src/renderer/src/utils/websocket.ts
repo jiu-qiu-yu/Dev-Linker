@@ -3,9 +3,6 @@
  * 用于处理 WebSocket 客户端连接
  */
 
-import { useConnectionStore } from '../store/connection'
-import { DataFormatter } from './data-formatter'
-
 export class WebSocketManager {
   private ws: WebSocket | null = null
   private reconnectTimer: NodeJS.Timeout | null = null
@@ -39,21 +36,6 @@ export class WebSocketManager {
           console.log('WebSocket connected')
           this.reconnectAttempts = 0
           this.manualDisconnect = false  // 连接成功，重置手动断开标志
-
-          // --- 新增逻辑：发送登录包 ---
-          const store = useConnectionStore()
-          if (store.loginConfig.enabled && store.loginConfig.content) {
-            console.log('[WebSocket] Sending Login Packet...')
-            let dataToSend: string | Uint8Array = store.loginConfig.content
-
-            if (store.loginConfig.format === 'hex') {
-              dataToSend = DataFormatter.hexToUint8Array(store.loginConfig.content)
-            }
-
-            // 复用 send 方法
-            this.send(dataToSend)
-          }
-          // -------------------------
 
           this.onOpen?.()
           resolve()

@@ -1,68 +1,96 @@
 <template>
-  <div class="interaction-container">
-    <div class="send-pane">
-      <div class="pane-header">
-        <span class="title">发送数据</span>
-        <el-radio-group v-model="sendFormat" size="small">
-          <el-radio-button label="string">String</el-radio-button>
-          <el-radio-button label="hex">HEX</el-radio-button>
-        </el-radio-group>
-      </div>
+  <div class="flex flex-col h-full bg-white">
 
-      <div class="input-area">
-        <el-input
-          v-model="sendDataDisplay"
-          type="textarea"
-          :rows="3"
-          :placeholder="sendPlaceholder"
-          resize="none"
-          class="custom-textarea"
-          spellcheck="false"
-        />
-        <div class="send-tools">
-          <el-button size="small" text @click="clearSendData">清空</el-button>
-          <el-button
-            type="primary"
-            :disabled="!canSend || !hasSendData"
-            :loading="isSending"
-            @click="handleSend"
+    <!-- 日志区 -->
+    <div class="flex-1 overflow-y-auto bg-white log-container" ref="logContainer">
+      <div v-if="logs.length === 0" class="flex items-center justify-center h-full text-slate-400 text-sm italic">
+        暂无日志数据
+      </div>
+      <div v-else class="font-mono text-sm">
+        <div
+          v-for="log in logs"
+          :key="log.id"
+          class="flex gap-3 px-4 py-2 border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
+        >
+          <span class="text-xs text-slate-400 flex-shrink-0 font-normal">{{ log.timestamp }}</span>
+          <span
+            class="text-xs font-semibold flex-shrink-0 min-w-[42px]"
+            :class="{
+              'text-blue-600': log.type === 'send',
+              'text-emerald-600': log.type === 'receive',
+              'text-slate-400': log.type === 'connection',
+              'text-red-600': log.type === 'error'
+            }"
           >
-            发送
-          </el-button>
+            {{ getLogTypeLabel(log.type) }}
+          </span>
+          <span class="flex-1 text-slate-800 break-all">{{ log.content }}</span>
         </div>
       </div>
     </div>
 
-    <div class="log-pane">
-      <div class="pane-header">
-        <span class="title">运行日志</span>
-        <div class="controls">
+    <!-- 发送区 - 固定底部 -->
+    <div class="flex-shrink-0 border-t border-slate-200 bg-white shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
+      <!-- 工具栏 -->
+      <div class="flex items-center justify-between px-4 py-2 border-b border-slate-100">
+        <div class="flex items-center gap-3">
+          <span class="text-sm font-medium text-slate-600">发送数据</span>
+          <el-radio-group v-model="sendFormat" size="small">
+            <el-radio-button label="string">String</el-radio-button>
+            <el-radio-button label="hex">HEX</el-radio-button>
+          </el-radio-group>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-400">日志格式:</span>
           <el-radio-group v-model="logFormat" size="small">
             <el-radio-button label="string">Str</el-radio-button>
             <el-radio-button label="hex">Hex</el-radio-button>
           </el-radio-group>
-          <el-button size="small" circle @click="clearLogs">
-            <el-icon><Delete /></el-icon>
-          </el-button>
+          <button
+            class="ml-2 p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-red-600 transition-colors"
+            @click="clearLogs"
+            title="清空日志"
+          >
+            <el-icon :size="16"><Delete /></el-icon>
+          </button>
         </div>
       </div>
 
-      <div class="log-scroll-container" ref="logContainer">
-        <div v-if="logs.length === 0" class="empty-state">
-          暂无日志数据
+      <!-- 输入区 -->
+      <div class="p-4">
+        <div class="relative">
+          <textarea
+            v-model="sendDataDisplay"
+            class="w-full px-3 py-2 text-sm font-mono border-0 border-b-2 border-slate-200 focus:border-brand-600 focus:outline-none resize-none transition-colors bg-transparent text-slate-800 placeholder:text-slate-400"
+            :placeholder="sendPlaceholder"
+            rows="2"
+            spellcheck="false"
+          ></textarea>
         </div>
-        <div
-          v-for="log in logs"
-          :key="log.id"
-          class="log-row"
-          :class="log.type"
-        >
-          <span class="time">[{{ log.timestamp }}]</span>
-          <span class="tag" :class="log.type">{{ getLogTypeLabel(log.type) }}</span>
-          <span class="content">{{ log.content }}</span>
+
+        <div class="flex justify-between items-center mt-3">
+          <button
+            class="text-sm text-slate-400 hover:text-slate-600 transition-colors"
+            @click="clearSendData"
+          >
+            清空
+          </button>
+
+          <button
+            class="px-6 py-1.5 rounded-md text-sm font-medium transition-all"
+            :class="canSend && hasSendData
+              ? 'bg-brand-600 text-white hover:bg-brand-700 shadow-sm-soft'
+              : 'bg-slate-100 text-slate-400 cursor-not-allowed'"
+            :disabled="!canSend || !hasSendData || isSending"
+            @click="handleSend"
+          >
+            {{ isSending ? '发送中...' : '发送' }}
+          </button>
         </div>
       </div>
     </div>
+
   </div>
 </template>
 
@@ -322,243 +350,27 @@ defineExpose({
 onMounted(() => {
   // 加载保存的配置
   connectionStore.loadConfig()
-
-  // 如果心跳格式是HEX，需要格式化显示数据
-  if (connectionStore.heartbeatConfig.format === 'hex' && connectionStore.heartbeatConfig.content) {
-    const cleanHex = DataFormatter.sanitizeHexInput(connectionStore.heartbeatConfig.content)
-    // 可以选择将心跳内容预填充到发送框（可选）
-    // sendData.value = DataFormatter.formatHexWithSpaces(cleanHex)
-    // rawSendData.value = cleanHex
-  }
 })
 </script>
 
 <style scoped>
-.interaction-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  padding: 0;
-  background: #0d1117;
+/* 自定义滚动条样式 */
+.log-container::-webkit-scrollbar {
+  width: 8px;
 }
 
-.send-pane {
-  flex-shrink: 0;
-  border-bottom: 1px solid #30363d;
-  background: #161b22;
-  padding: 12px 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+.log-container::-webkit-scrollbar-track {
+  background: #f1f5f9; /* slate-100 */
+  border-radius: 4px;
 }
 
-.pane-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
+.log-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1; /* slate-300 */
+  border-radius: 4px;
+  transition: background 0.2s;
 }
 
-.title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #e6edf3;
-  letter-spacing: 0.3px;
-}
-
-.input-area {
-  border: 1px solid #30363d;
-  border-radius: 6px;
-  padding: 4px;
-  transition: all 0.2s;
-  background: #0d1117;
-}
-
-.input-area:focus-within {
-  border-color: #58a6ff;
-  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
-}
-
-/* 深色主题输入框样式 */
-:deep(.custom-textarea .el-textarea__inner) {
-  border: none;
-  box-shadow: none;
-  padding: 8px;
-  font-family: 'Consolas', 'Monaco', monospace;
-  background-color: transparent;
-  color: #e6edf3;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-:deep(.custom-textarea .el-textarea__inner::placeholder) {
-  color: #484f58;
-}
-
-.send-tools {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 8px 8px 4px;
-  border-top: 1px solid #30363d;
-}
-
-.send-tools .el-button--text {
-  color: #7d8590;
-  transition: color 0.2s;
-}
-
-.send-tools .el-button--text:hover {
-  color: #58a6ff;
-}
-
-.log-pane {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: #0d1117;
-  min-height: 0;
-}
-
-.log-pane .pane-header {
-  background: #161b22;
-  color: #e6edf3;
-  padding: 10px 16px;
-  margin-bottom: 0;
-  border-bottom: 1px solid #30363d;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.log-pane .title {
-  color: #e6edf3;
-}
-
-.controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.controls .el-button {
-  color: #7d8590;
-  background: transparent;
-  border-color: #30363d;
-  transition: all 0.2s;
-}
-
-.controls .el-button:hover {
-  color: #f85149;
-  border-color: #f85149;
-  background: rgba(248, 81, 73, 0.1);
-}
-
-.log-scroll-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 13px;
-  line-height: 1.8;
-  color: #e6edf3;
-}
-
-.log-row {
-  margin-bottom: 4px;
-  word-break: break-all;
-  display: flex;
-  gap: 8px;
-  padding: 2px 4px;
-  border-radius: 3px;
-  transition: background 0.15s;
-}
-
-.log-row:hover {
-  background: rgba(88, 166, 255, 0.05);
-}
-
-.log-row .time {
-  color: #6e7681;
-  flex-shrink: 0;
-  font-size: 12px;
-}
-
-.log-row .tag {
-  flex-shrink: 0;
-  font-weight: 600;
-  min-width: 42px;
-  text-align: center;
-  font-size: 12px;
-}
-
-.log-row .tag.send { color: #58a6ff; }
-.log-row .tag.receive { color: #f0883e; }
-.log-row .tag.error { color: #f85149; }
-.log-row .tag.connection { color: #bc8cff; }
-
-.log-row .content {
-  color: #e6edf3;
-  flex: 1;
-}
-
-.empty-state {
-  color: #484f58;
-  text-align: center;
-  margin-top: 60px;
-  font-style: italic;
-  font-size: 14px;
-}
-
-/* 深色主题覆盖 Element Plus 样式 */
-:deep(.el-radio-button__inner) {
-  background-color: #21262d;
-  border-color: #30363d;
-  color: #7d8590;
-  transition: all 0.2s;
-}
-
-:deep(.el-radio-button__inner:hover) {
-  color: #58a6ff;
-}
-
-:deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-  background-color: #238636;
-  border-color: #238636;
-  color: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-:deep(.el-button--primary) {
-  background-color: #238636;
-  border-color: #238636;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-  transition: all 0.2s;
-}
-
-:deep(.el-button--primary:hover) {
-  background-color: #2ea043;
-  border-color: #2ea043;
-}
-
-:deep(.el-button--primary:disabled) {
-  background-color: #21262d;
-  border-color: #30363d;
-  color: #484f58;
-}
-
-/* 滚动条样式 */
-.log-scroll-container::-webkit-scrollbar {
-  width: 10px;
-}
-
-.log-scroll-container::-webkit-scrollbar-track {
-  background: #0d1117;
-}
-
-.log-scroll-container::-webkit-scrollbar-thumb {
-  background: #30363d;
-  border-radius: 5px;
-  border: 2px solid #0d1117;
-}
-
-.log-scroll-container::-webkit-scrollbar-thumb:hover {
-  background: #484f58;
+.log-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; /* slate-400 */
 }
 </style>

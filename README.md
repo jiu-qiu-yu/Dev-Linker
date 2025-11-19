@@ -4,9 +4,9 @@
 [![Electron](https://img.shields.io/badge/Electron-28.0-blue.svg)](https://electronjs.org)
 [![Vue](https://img.shields.io/badge/Vue-3.4-green.svg)](https://vuejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org)
-[![Version](https://img.shields.io/badge/Version-1.4.0-brightgreen.svg)](https://github.com/jiu-qiu-yu/Dev-Linker)
+[![Version](https://img.shields.io/badge/Version-1.4.1-brightgreen.svg)](https://github.com/jiu-qiu-yu/Dev-Linker)
 
-> 🚀 **最新版本 v1.4.0**：全新GitHub深色主题界面，优化用户体验，新增设备标识显示和可调节布局！
+> 🚀 **最新版本 v1.4.1**：优化地址输入体验，统一滚动条视觉风格！
 
 ## 📖 项目简介
 
@@ -303,6 +303,18 @@ npm run preview
 - [ ] 发布到 GitHub Release
 
 ## 📝 更新日志
+
+### v1.4.1 (2025-01-19)
+
+**🎨 UI/UX 细节优化**
+- ✨ 移除地址输入框的协议前缀提示（ws://、tcp://等），避免用户误解
+- ✨ 统一数据接收框滚动条样式，采用 Slate 色系与整体风格融合
+- ✨ 滚动条支持 Hover 交互效果，提升视觉反馈
+
+**设计理念**
+- 🎯 遵循 KISS 原则：简洁直观的输入体验
+- 🎯 保持一致性：所有 UI 元素使用统一色系
+- 🎯 用户体验优先：消除误导性提示，优化视觉一致性
 
 ### v1.4.0 (2025-01-19)
 

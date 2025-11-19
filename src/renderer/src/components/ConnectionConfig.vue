@@ -1,10 +1,58 @@
 <template>
-  <div class="config-container">
-    <div class="config-group">
-      <div class="group-header">
-        <div class="group-title">
-          <el-icon :size="14"><User /></el-icon>
-          <span>登录/注册包</span>
+  <div class="flex flex-col gap-3">
+
+    <!-- 设备SN管理卡片 -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm-soft overflow-hidden transition-all duration-200 hover:shadow-card">
+      <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+        <div class="flex items-center gap-2">
+          <div class="w-1.5 h-1.5 rounded-full bg-brand-500"></div>
+          <span class="text-sm font-semibold text-slate-700">设备管理</span>
+        </div>
+        <el-icon :size="14" class="text-slate-400"><Setting /></el-icon>
+      </div>
+
+      <div class="p-4 relative">
+        <div v-if="isConnectionActive" class="absolute inset-0 bg-slate-50/80 backdrop-blur-[1px] z-10 flex items-center justify-center cursor-not-allowed rounded-b-xl">
+          <div class="flex flex-col items-center gap-2 text-slate-400">
+            <el-icon :size="20"><Lock /></el-icon>
+            <span class="text-xs">连接中,SN已锁定</span>
+          </div>
+        </div>
+
+        <div :class="isConnectionActive ? 'pointer-events-none select-none' : ''">
+          <div v-if="isConnectionActive" class="flex justify-between text-sm pb-2">
+            <span class="text-slate-500">设备SN</span>
+            <span class="font-mono font-medium text-slate-800">{{ store.deviceConfig.sn }}</span>
+          </div>
+          <el-input
+            v-else
+            v-model="store.deviceConfig.sn"
+            placeholder="Device SN"
+            @change="handleSNChange"
+            size="default"
+          >
+            <template #prepend>
+              <span class="text-slate-600 font-medium">SN</span>
+            </template>
+            <template #append>
+              <button
+                class="px-3 py-1 text-sm text-slate-600 hover:text-brand-600 transition-colors"
+                @click="generateSN"
+              >
+                <el-icon><Refresh /></el-icon>
+              </button>
+            </template>
+          </el-input>
+        </div>
+      </div>
+    </div>
+
+    <!-- 登录/注册包卡片 -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm-soft overflow-hidden transition-all duration-200 hover:shadow-card">
+      <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+        <div class="flex items-center gap-2">
+          <div class="w-1.5 h-1.5 rounded-full bg-brand-500"></div>
+          <span class="text-sm font-semibold text-slate-700">登录/注册包</span>
         </div>
         <el-switch
           v-model="store.loginConfig.enabled"
@@ -14,33 +62,55 @@
         />
       </div>
 
-      <div v-if="store.loginConfig.enabled && !isConnectionActive" class="compact-form">
-        <div class="row">
-          <el-radio-group v-model="store.loginConfig.format" size="small" @change="handleLoginFormatChange">
-            <el-radio-button label="string">STR</el-radio-button>
-            <el-radio-button label="hex">HEX</el-radio-button>
-          </el-radio-group>
+      <div class="p-4 relative">
+        <div v-if="isConnectionActive && store.loginConfig.enabled" class="absolute inset-0 bg-slate-50/80 backdrop-blur-[1px] z-10 flex items-end justify-end p-3 rounded-b-xl cursor-not-allowed">
+          <el-icon :size="16" class="text-slate-400"><Lock /></el-icon>
         </div>
-        <el-input
-          v-model="loginDisplayContent"
-          type="textarea"
-          :rows="2"
-          placeholder="连接成功后自动发送"
-          resize="none"
-          @input="handleLoginInput"
-        />
-      </div>
-      <div v-else-if="store.loginConfig.enabled" class="login-status">
-        <el-tag size="small" type="info">{{ store.loginConfig.format === 'hex' ? 'HEX' : 'STR' }}</el-tag>
-        <span class="content-preview">{{ loginDisplayContent }}</span>
+
+        <div :class="isConnectionActive ? 'pointer-events-none select-none' : ''">
+          <div v-if="store.loginConfig.enabled && !isConnectionActive" class="flex flex-col gap-3">
+            <div class="flex gap-2">
+              <el-radio-group v-model="store.loginConfig.format" size="small" @change="handleLoginFormatChange">
+                <el-radio-button label="string">STR</el-radio-button>
+                <el-radio-button label="hex">HEX</el-radio-button>
+              </el-radio-group>
+            </div>
+            <el-input
+              v-model="loginDisplayContent"
+              type="textarea"
+              :rows="2"
+              placeholder="连接成功后自动发送"
+              resize="none"
+              @input="handleLoginInput"
+            />
+          </div>
+
+          <div v-else-if="store.loginConfig.enabled && isConnectionActive" class="flex flex-col gap-2">
+            <div class="flex justify-between text-sm border-b border-slate-100 pb-2">
+              <span class="text-slate-500">格式</span>
+              <span class="font-medium text-slate-800">{{ store.loginConfig.format === 'hex' ? 'HEX' : 'STR' }}</span>
+            </div>
+            <div class="flex flex-col gap-1">
+              <span class="text-xs text-slate-400">发送内容</span>
+              <div class="bg-slate-100 text-slate-700 font-mono text-sm p-2 rounded border border-slate-200 break-all">
+                {{ loginDisplayContent }}
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="text-center text-slate-400 text-sm py-2">
+            未启用登录包
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="config-group">
-      <div class="group-header">
-        <div class="group-title">
-          <el-icon :size="14"><Timer /></el-icon>
-          <span>心跳维持</span>
+    <!-- 心跳包卡片 -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm-soft overflow-hidden transition-all duration-200 hover:shadow-card">
+      <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+        <div class="flex items-center gap-2">
+          <div class="w-1.5 h-1.5 rounded-full bg-brand-500"></div>
+          <span class="text-sm font-semibold text-slate-700">心跳维持</span>
         </div>
         <el-switch
           v-model="store.heartbeatConfig.enabled"
@@ -50,74 +120,63 @@
         />
       </div>
 
-      <div v-if="store.heartbeatConfig.enabled && !isHeartbeatDisabled" class="compact-form">
-        <div class="row">
-          <span class="label">间隔(秒):</span>
-          <el-input-number
-            v-model="store.heartbeatConfig.interval"
-            size="small"
-            :min="1"
-            controls-position="right"
-            style="width: 80px;"
-            @change="handleIntervalChange"
-          />
-
-          <el-radio-group v-model="store.heartbeatConfig.format" size="small" style="margin-left: auto;" @change="handleFormatChange">
-            <el-radio-button label="string">STR</el-radio-button>
-            <el-radio-button label="hex">HEX</el-radio-button>
-          </el-radio-group>
+      <div class="p-4 relative">
+        <div v-if="isHeartbeatDisabled && store.heartbeatConfig.enabled" class="absolute inset-0 bg-slate-50/80 backdrop-blur-[1px] z-10 flex items-end justify-end p-3 rounded-b-xl cursor-not-allowed">
+          <el-icon :size="16" class="text-slate-400"><Lock /></el-icon>
         </div>
-        <el-input
-          v-model="heartbeatDisplayContent"
-          placeholder="心跳内容"
-          size="small"
-          @input="handleHeartbeatInput"
-        />
-      </div>
 
-      <div v-else-if="store.heartbeatConfig.enabled && isHeartbeatDisabled" class="heartbeat-status">
-        <el-descriptions :column="1" size="small" border>
-          <el-descriptions-item label="状态">
-            <el-tag size="small" type="success">已启用</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="间隔">{{ store.heartbeatConfig.interval }} 秒</el-descriptions-item>
-          <el-descriptions-item label="格式">{{ store.heartbeatConfig.format === 'string' ? '字符串' : '十六进制' }}</el-descriptions-item>
-          <el-descriptions-item label="内容">
-            <span class="heartbeat-content-display">{{ heartbeatDisplayContent || store.heartbeatConfig.content }}</span>
-          </el-descriptions-item>
-        </el-descriptions>
-      </div>
-    </div>
+        <div :class="isHeartbeatDisabled ? 'pointer-events-none select-none' : ''">
+          <div v-if="store.heartbeatConfig.enabled && !isHeartbeatDisabled" class="flex flex-col gap-3">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="text-sm text-slate-600">间隔(秒):</span>
+                <el-input-number
+                  v-model="store.heartbeatConfig.interval"
+                  size="small"
+                  :min="1"
+                  controls-position="right"
+                  style="width: 80px;"
+                  @change="handleIntervalChange"
+                />
+              </div>
 
-    <!-- 设备SN管理区域 - 新增 -->
-    <div class="config-group">
-      <div class="group-header">
-        <div class="group-title">
-          <el-icon :size="14"><Setting /></el-icon>
-          <span>设备管理</span>
-        </div>
-      </div>
-      <div class="device-management">
-        <el-input
-          v-model="store.deviceConfig.sn"
-          placeholder="Device SN"
-          @change="handleSNChange"
-          size="small"
-          :disabled="isConnectionActive"
-        >
-          <template #prepend>SN</template>
-          <template #append>
-            <el-button @click="generateSN" size="small" :disabled="isConnectionActive">
-              <el-icon><Refresh /></el-icon>
-            </el-button>
-          </template>
-        </el-input>
-        <div v-if="isConnectionActive" class="lock-hint">
-          <el-icon :size="12"><Lock /></el-icon>
-          <span>连接中，SN已锁定</span>
+              <el-radio-group v-model="store.heartbeatConfig.format" size="small" @change="handleFormatChange">
+                <el-radio-button label="string">STR</el-radio-button>
+                <el-radio-button label="hex">HEX</el-radio-button>
+              </el-radio-group>
+            </div>
+            <el-input
+              v-model="heartbeatDisplayContent"
+              placeholder="心跳内容"
+              size="default"
+              @input="handleHeartbeatInput"
+            />
+          </div>
+
+          <div v-else-if="store.heartbeatConfig.enabled && isHeartbeatDisabled" class="flex flex-col gap-2">
+            <div class="flex justify-between text-sm border-b border-slate-100 pb-2">
+              <span class="text-slate-500">间隔</span>
+              <span class="font-medium text-slate-800">{{ store.heartbeatConfig.interval }} 秒</span>
+            </div>
+            <div class="flex justify-between text-sm border-b border-slate-100 pb-2">
+              <span class="text-slate-500">格式</span>
+              <span class="font-medium text-slate-800">{{ store.heartbeatConfig.format === 'hex' ? 'HEX' : 'STR' }}</span>
+            </div>
+            <div class="flex flex-col gap-1">
+              <span class="text-xs text-slate-400">发送内容</span>
+              <div class="bg-slate-100 text-slate-700 font-mono text-sm p-2 rounded border border-slate-200 break-all">
+                {{ heartbeatDisplayContent || store.heartbeatConfig.content }}
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="text-center text-slate-400 text-sm py-2">
+            未启用心跳包
+          </div>
         </div>
       </div>
     </div>
+
   </div>
 </template>
 
@@ -125,7 +184,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useConnectionStore } from '@/store/connection'
 import { DataFormatter } from '@/utils/data-formatter'
-import { Refresh, User, Timer, Setting, Lock } from '@element-plus/icons-vue'
+import { Refresh, Setting, Lock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 const store = useConnectionStore()
@@ -348,220 +407,3 @@ onMounted(() => {
   }
 })
 </script>
-
-<style scoped>
-.config-container {
-  padding: 12px;
-  color: #e6edf3;
-  height: 100%;
-  overflow-y: auto;
-}
-
-.config-group {
-  margin-bottom: 12px;
-  background: #1c2128;
-  padding: 12px;
-  border-radius: 6px;
-  border: 1px solid #30363d;
-  transition: all 0.2s;
-}
-
-.config-group:hover {
-  border-color: #58a6ff;
-  box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.1);
-}
-
-.group-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.group-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #e6edf3;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.group-title .el-icon {
-  color: #58a6ff;
-}
-
-.compact-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.label {
-  font-size: 12px;
-  color: #7d8590;
-  font-weight: 500;
-}
-
-.login-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 0;
-}
-
-.content-preview {
-  font-family: 'Consolas', monospace;
-  color: #7d8590;
-  font-size: 12px;
-  word-break: break-all;
-}
-
-.heartbeat-status {
-  padding: 8px 0;
-}
-
-.heartbeat-content-display {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 12px;
-  color: #7d8590;
-  word-break: break-all;
-}
-
-.device-management {
-  margin-top: 8px;
-}
-
-.lock-hint {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 6px;
-  font-size: 11px;
-  color: #7d8590;
-  font-style: italic;
-}
-
-.lock-hint .el-icon {
-  color: #d29922;
-}
-
-/* 深色主题覆盖 Element Plus 样式 */
-:deep(.el-input__wrapper),
-:deep(.el-textarea__inner) {
-  background-color: #0d1117;
-  box-shadow: none;
-  border: 1px solid #30363d;
-  color: #e6edf3;
-  transition: all 0.2s;
-}
-
-:deep(.el-input__wrapper:hover),
-:deep(.el-textarea__inner:hover) {
-  border-color: #58a6ff;
-}
-
-:deep(.el-input__wrapper.is-focus),
-:deep(.el-textarea__inner:focus) {
-  border-color: #58a6ff;
-  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
-}
-
-:deep(.el-input__inner) {
-  color: #e6edf3;
-}
-
-:deep(.el-input__inner::placeholder),
-:deep(.el-textarea__inner::placeholder) {
-  color: #484f58;
-}
-
-:deep(.el-input-group__prepend) {
-  background-color: #21262d;
-  border-color: #30363d;
-  color: #7d8590;
-}
-
-:deep(.el-input-group__append) {
-  background-color: #21262d;
-  border-color: #30363d;
-}
-
-:deep(.el-input-group__append .el-button) {
-  color: #7d8590;
-  background: transparent;
-  border: none;
-}
-
-:deep(.el-input-group__append .el-button:hover) {
-  color: #58a6ff;
-}
-
-:deep(.el-radio-button__inner) {
-  background-color: #21262d;
-  border-color: #30363d;
-  color: #7d8590;
-  transition: all 0.2s;
-}
-
-:deep(.el-radio-button__inner:hover) {
-  color: #58a6ff;
-}
-
-:deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-  background-color: #238636;
-  border-color: #238636;
-  color: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-:deep(.el-input-number) {
-  --el-input-bg-color: #0d1117;
-  --el-input-border-color: #30363d;
-  --el-input-text-color: #e6edf3;
-  --el-input-hover-border-color: #58a6ff;
-}
-
-:deep(.el-switch) {
-  --el-switch-off-color: #30363d;
-  --el-switch-on-color: #238636;
-  --el-switch-border-color: #30363d;
-}
-
-:deep(.el-switch.is-checked) {
-  --el-switch-on-color: #238636;
-}
-
-:deep(.el-descriptions) {
-  --el-descriptions-table-border: 1px solid #30363d;
-}
-
-:deep(.el-descriptions__label) {
-  background-color: #21262d;
-  color: #7d8590;
-  font-weight: 500;
-}
-
-:deep(.el-descriptions__content) {
-  background-color: #0d1117;
-  color: #e6edf3;
-}
-
-:deep(.el-tag--info) {
-  background-color: rgba(88, 166, 255, 0.15);
-  border-color: rgba(88, 166, 255, 0.3);
-  color: #58a6ff;
-}
-
-:deep(.el-tag--success) {
-  background-color: rgba(63, 185, 80, 0.15);
-  border-color: rgba(63, 185, 80, 0.3);
-  color: #3fb950;
-}
-</style>

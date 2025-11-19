@@ -1,88 +1,108 @@
 <template>
-  <div class="app-container">
-    <div class="top-bar">
-      <div class="brand">
-        <el-icon :size="20" class="logo-icon"><Connection /></el-icon>
-        <span class="app-title">Dev-Linker</span>
-        <el-tag size="small" effect="plain" class="version-tag">v1.3.0</el-tag>
+  <div class="flex flex-col h-screen bg-white overflow-hidden">
+
+    <!-- 顶部指令台 -->
+    <header class="h-16 border-b border-slate-200 flex items-center px-4 justify-between bg-white shadow-sm z-10">
+      <div class="flex items-center gap-4">
+        <div class="font-bold text-xl tracking-tight text-brand-600 flex items-center gap-2">
+          <el-icon :size="20"><Connection /></el-icon>
+          <span>Dev-Linker</span>
+        </div>
+        <div class="h-6 w-px bg-slate-200 mx-2"></div>
+
+        <div class="flex gap-2">
+          <el-select v-model="store.serverConfig.protocolType" class="w-32" size="default" @change="handleProtocolTypeChange">
+            <el-option label="WebSocket" value="WebSocket" />
+            <el-option label="TCP" value="TCP" />
+            <el-option label="UDP" value="UDP" disabled />
+            <el-option label="MQTT" value="MQTT" disabled />
+            <el-option label="HTTP" value="HTTP" disabled />
+          </el-select>
+          <el-input
+            v-model="store.serverConfig.fullAddress"
+            class="w-64 font-mono"
+            :placeholder="addressPlaceholder"
+            clearable
+            @keyup.enter="handleConnectionAction"
+          />
+
+          <button
+            class="px-6 py-1.5 rounded-md text-sm font-medium transition-all shadow-sm-soft"
+            :class="isConnected ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100' : 'bg-brand-600 text-white hover:bg-brand-700 shadow-blue-200'"
+            :disabled="isConnecting"
+            @click="handleConnectionAction"
+          >
+            {{ isConnected ? '断开' : (isConnecting ? '连接中' : '连接') }}
+          </button>
+        </div>
       </div>
 
-      <!-- 设备标识Badge - 新增 -->
-      <div class="device-badge" @click="copyDeviceSN" :title="'点击复制设备SN: ' + store.deviceConfig.sn">
-        <el-icon :size="14"><Cpu /></el-icon>
-        <span class="device-sn">{{ store.deviceConfig.sn }}</span>
-        <el-icon :size="12" class="copy-icon"><DocumentCopy /></el-icon>
-      </div>
-
-      <div class="connection-controls">
-        <el-select
-          v-model="store.serverConfig.protocolType"
-          class="protocol-select"
-          placeholder="协议"
-          @change="handleProtocolTypeChange"
+      <div class="flex items-center gap-6">
+        <!-- 设备SN显示 -->
+        <div
+          class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-md cursor-pointer hover:border-brand-500 transition-all"
+          @click="copyDeviceSN"
+          :title="'点击复制设备SN: ' + store.deviceConfig.sn"
         >
-          <el-option label="WebSocket" value="WebSocket" />
-          <el-option label="TCP" value="TCP" />
-          <el-option label="UDP" value="UDP" disabled />
-          <el-option label="MQTT" value="MQTT" disabled />
-          <el-option label="HTTP" value="HTTP" disabled />
-        </el-select>
+          <el-icon :size="14" class="text-slate-400"><Cpu /></el-icon>
+          <span class="text-xs font-mono font-semibold text-slate-700">{{ store.deviceConfig.sn }}</span>
+          <el-icon :size="12" class="text-slate-400"><DocumentCopy /></el-icon>
+        </div>
 
-        <el-input
-          v-model="store.serverConfig.fullAddress"
-          class="address-input"
-          :placeholder="addressPlaceholder"
-          clearable
-          @keyup.enter="handleConnectionAction"
-        />
+        <!-- 状态指示器 -->
+        <div class="flex items-center gap-2">
+          <div
+            class="w-2 h-2 rounded-full transition-all"
+            :class="{
+              'bg-slate-300': store.connectionStatus === 'disconnected',
+              'bg-green-500 shadow-lg shadow-green-200': store.connectionStatus === 'connected',
+              'bg-yellow-500 animate-pulse': store.connectionStatus === 'connecting',
+              'bg-red-500': store.connectionStatus === 'failed'
+            }"
+          ></div>
+          <span class="text-sm font-medium" :class="{
+            'text-slate-400': store.connectionStatus === 'disconnected',
+            'text-green-600': store.connectionStatus === 'connected',
+            'text-yellow-600': store.connectionStatus === 'connecting',
+            'text-red-600': store.connectionStatus === 'failed'
+          }">{{ statusText }}</span>
+        </div>
 
-        <el-button
-          :type="isConnected ? 'danger' : 'primary'"
-          :loading="isConnecting"
-          class="connect-btn"
-          @click="handleConnectionAction"
+        <button
+          class="p-2 rounded-md hover:bg-slate-100 transition-colors text-slate-400 hover:text-brand-600"
+          @click="showAbout = true"
         >
-          {{ isConnected ? '断开' : (isConnecting ? '连接中' : '连接') }}
-        </el-button>
-      </div>
-
-      <div class="status-indicator" :class="store.connectionStatus">
-        <div class="dot"></div>
-        <span class="status-text">{{ statusText }}</span>
-      </div>
-
-      <div class="window-actions">
-        <el-button link @click="showAbout = true">
           <el-icon><InfoFilled /></el-icon>
-        </el-button>
+        </button>
       </div>
-    </div>
+    </header>
 
-    <div class="main-content">
-      <aside class="settings-pane" :style="{ width: settingsPaneWidth + 'px' }">
+    <div class="flex flex-1 overflow-hidden">
+
+      <!-- 左侧配置面板 -->
+      <aside class="w-80 bg-slate-50 border-r border-slate-200 flex flex-col overflow-y-auto p-4 gap-4">
         <ConnectionConfig />
       </aside>
 
-      <!-- 可调节分隔条 - 新增 -->
-      <div class="resizer" @mousedown="startResize"></div>
-
-      <main class="interaction-pane">
+      <!-- 右侧主内容区 -->
+      <main class="flex-1 flex flex-col min-w-0 bg-white">
         <DataInteraction ref="dataInteractionRef" />
       </main>
+
     </div>
 
     <el-dialog v-model="showAbout" title="关于 Dev-Linker" width="400px">
       <div class="about-content">
         <p><strong>Dev-Linker</strong></p>
         <p>虚拟4G模块模拟器 - 物联网开发调试工具</p>
-        <p>版本: v1.3.0</p>
+        <p>版本: v1.4.1</p>
       </div>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Connection, InfoFilled, Cpu, DocumentCopy } from '@element-plus/icons-vue'
 import { useConnectionStore } from '@/store/connection'
 import ConnectionConfig from '@/components/ConnectionConfig.vue'
@@ -95,12 +115,6 @@ import { ElMessage } from 'element-plus'
 const store = useConnectionStore()
 const showAbout = ref(false)
 const dataInteractionRef = ref<InstanceType<typeof DataInteraction> | null>(null)
-
-// 可调节分隔条相关
-const settingsPaneWidth = ref(320)
-const isResizing = ref(false)
-const startX = ref(0)
-const startWidth = ref(0)
 
 // 连接管理器实例
 const wsManager = new WebSocketManager()
@@ -120,13 +134,24 @@ const statusText = computed(() => {
   return statusMap[store.connectionStatus] || '未知状态'
 })
 
+const protocolPrefix = computed(() => {
+  const prefixMap: Record<string, string> = {
+    'WebSocket': 'ws://',
+    'TCP': 'tcp://',
+    'UDP': 'udp://',
+    'MQTT': 'mqtt://',
+    'HTTP': 'http://'
+  }
+  return prefixMap[store.serverConfig.protocolType] || ''
+})
+
 const addressPlaceholder = computed(() => {
   switch (store.serverConfig.protocolType) {
-    case 'WebSocket': return 'ws://localhost:18080 或 wss://remote.com/path'
-    case 'TCP': return 'tcp://localhost:18888'
-    case 'UDP': return 'udp://localhost:18888'
-    case 'MQTT': return 'mqtt://localhost:1883'
-    case 'HTTP': return 'http://localhost:8080'
+    case 'WebSocket': return 'localhost:18080 或 remote.com/path'
+    case 'TCP': return 'localhost:18888'
+    case 'UDP': return 'localhost:18888'
+    case 'MQTT': return 'localhost:1883'
+    case 'HTTP': return 'localhost:8080'
     default: return '请输入服务器地址'
   }
 })
@@ -298,315 +323,13 @@ const copyDeviceSN = async () => {
   }
 }
 
-// 开始调整分隔条大小
-const startResize = (e: MouseEvent) => {
-  isResizing.value = true
-  startX.value = e.clientX
-  startWidth.value = settingsPaneWidth.value
-  document.addEventListener('mousemove', doResize)
-  document.addEventListener('mouseup', stopResize)
-  e.preventDefault()
-}
-
-// 调整中
-const doResize = (e: MouseEvent) => {
-  if (!isResizing.value) return
-  const deltaX = e.clientX - startX.value
-  const newWidth = startWidth.value + deltaX
-  // 限制宽度在 250px 到 500px 之间
-  settingsPaneWidth.value = Math.max(250, Math.min(500, newWidth))
-}
-
-// 停止调整
-const stopResize = () => {
-  isResizing.value = false
-  document.removeEventListener('mousemove', doResize)
-  document.removeEventListener('mouseup', stopResize)
-}
-
 onMounted(() => {
   // 加载保存的配置
   store.loadConfig()
 })
-
-onUnmounted(() => {
-  // 清理事件监听
-  document.removeEventListener('mousemove', doResize)
-  document.removeEventListener('mouseup', stopResize)
-})
 </script>
 
 <style scoped>
-.app-container {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: #0d1117;
-  color: #e6edf3;
-}
-
-.top-bar {
-  height: 48px;
-  background: #161b22;
-  border-bottom: 1px solid #30363d;
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  gap: 12px;
-  flex-shrink: 0;
-  -webkit-app-region: drag;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: bold;
-  color: #58a6ff;
-  min-width: 140px;
-}
-
-.logo-icon {
-  color: #58a6ff;
-}
-
-.app-title {
-  font-size: 14px;
-  letter-spacing: 0.5px;
-}
-
-.version-tag {
-  background: rgba(88, 166, 255, 0.15);
-  border: none;
-  color: #79c0ff;
-  font-size: 10px;
-  font-weight: 600;
-}
-
-/* 设备标识Badge - 新增 */
-.device-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  background: linear-gradient(135deg, #1c2128 0%, #21262d 100%);
-  border: 1px solid #30363d;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  -webkit-app-region: no-drag;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.device-badge:hover {
-  border-color: #58a6ff;
-  background: linear-gradient(135deg, #21262d 0%, #2d333b 100%);
-  box-shadow: 0 0 8px rgba(88, 166, 255, 0.3);
-}
-
-.device-badge:active {
-  transform: scale(0.98);
-}
-
-.device-sn {
-  font-family: 'Consolas', monospace;
-  font-size: 12px;
-  font-weight: 600;
-  color: #79c0ff;
-  letter-spacing: 0.5px;
-}
-
-.copy-icon {
-  color: #7d8590;
-  transition: color 0.2s;
-}
-
-.device-badge:hover .copy-icon {
-  color: #58a6ff;
-}
-
-.connection-controls {
-  flex: 1;
-  display: flex;
-  gap: 10px;
-  -webkit-app-region: no-drag;
-}
-
-.protocol-select {
-  width: 130px;
-}
-
-.address-input {
-  flex: 1;
-}
-
-.connect-btn {
-  width: 100px;
-  font-weight: bold;
-}
-
-.status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 12px;
-  -webkit-app-region: no-drag;
-}
-
-.status-indicator .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #484f58;
-}
-
-.status-indicator .status-text {
-  font-size: 12px;
-  color: #7d8590;
-  font-weight: 500;
-}
-
-.status-indicator.connected .dot {
-  background: #3fb950;
-  box-shadow: 0 0 10px rgba(63, 185, 80, 0.6);
-}
-
-.status-indicator.connected .status-text {
-  color: #3fb950;
-}
-
-.status-indicator.connecting .dot {
-  background: #d29922;
-  animation: pulse 1.5s infinite;
-}
-
-.status-indicator.connecting .status-text {
-  color: #d29922;
-}
-
-.status-indicator.failed .dot {
-  background: #f85149;
-}
-
-.status-indicator.failed .status-text {
-  color: #f85149;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(1.1); }
-}
-
-.window-actions {
-  -webkit-app-region: no-drag;
-}
-
-.window-actions .el-button {
-  color: #7d8590;
-  transition: color 0.2s;
-}
-
-.window-actions .el-button:hover {
-  color: #58a6ff;
-}
-
-.main-content {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-}
-
-.settings-pane {
-  background: #161b22;
-  border-right: 1px solid #30363d;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  flex-shrink: 0;
-  transition: width 0.1s ease-out;
-}
-
-/* 可调节分隔条 - 新增 */
-.resizer {
-  width: 4px;
-  background: #0d1117;
-  cursor: col-resize;
-  position: relative;
-  flex-shrink: 0;
-  transition: background 0.2s;
-}
-
-.resizer:hover {
-  background: #58a6ff;
-}
-
-.resizer::before {
-  content: '';
-  position: absolute;
-  left: -2px;
-  right: -2px;
-  top: 0;
-  bottom: 0;
-}
-
-.interaction-pane {
-  flex: 1;
-  background: #0d1117;
-  overflow: hidden;
-}
-
-/* 深色主题覆盖 Element Plus 默认样式 */
-:deep(.el-input__wrapper) {
-  background-color: #0d1117;
-  box-shadow: none;
-  border: 1px solid #30363d;
-  transition: all 0.2s;
-}
-
-:deep(.el-input__wrapper:hover) {
-  border-color: #58a6ff;
-}
-
-:deep(.el-input__wrapper.is-focus) {
-  border-color: #58a6ff;
-  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
-}
-
-:deep(.el-input__inner) {
-  color: #e6edf3;
-}
-
-:deep(.el-input__inner::placeholder) {
-  color: #7d8590;
-}
-
-:deep(.el-select .el-input__wrapper) {
-  background-color: #0d1117;
-}
-
-:deep(.el-button--primary) {
-  background-color: #238636;
-  border-color: #238636;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-:deep(.el-button--primary:hover) {
-  background-color: #2ea043;
-  border-color: #2ea043;
-}
-
-:deep(.el-button--danger) {
-  background-color: #da3633;
-  border-color: #da3633;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-:deep(.el-button--danger:hover) {
-  background-color: #f85149;
-  border-color: #f85149;
-}
-
 .about-content {
   text-align: center;
   padding: 20px;

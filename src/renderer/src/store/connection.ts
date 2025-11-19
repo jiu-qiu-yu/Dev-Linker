@@ -1,9 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import type { ProtocolType, ConnectionProtocol, ServerConfig, DeviceConfig, HeartbeatConfig, LoginConfig, DataInteractionConfig } from '@shared/types'
+import type { ConnectionStatus } from '@shared/types'
 import { DataFormatter } from '../utils/data-formatter'
-
-export type ConnectionProtocol = 'ws' | 'wss' | 'tcp' | 'udp' | 'mqtt' | 'http'
-export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'failed' | 'reconnecting'
 
 // 前置声明，避免循环导入
 export interface WebSocketManager {
@@ -22,36 +21,20 @@ export interface TCPSocket {
   onData?: (data: string) => void
 }
 
-export interface ServerConfig {
-  host: string
-  port: number
-  protocol: ConnectionProtocol
-}
-
-export interface DeviceConfig {
-  sn: string
-}
-
-export interface HeartbeatConfig {
-  enabled: boolean
-  interval: number
-  content: string
-  format: 'string' | 'hex'
-}
-
-export interface LoginConfig {
-  enabled: boolean
-  content: string
-  format: 'string' | 'hex'
-}
-
-export interface DataInteractionConfig {
-  logFormat: 'string' | 'hex'
-}
-
 export const useConnectionStore = defineStore('connection', () => {
-  // 服务器配置
+  // 服务器配置 - 新增字段以支持完整地址输入
   const serverConfig = ref<ServerConfig>({
+    // UI 绑定的数据
+    protocolType: 'WebSocket',
+    fullAddress: 'ws://localhost:18080',
+
+    // 解析后的底层连接数据
+    parsedHost: 'localhost',
+    parsedPort: 18080,
+    parsedProtocol: 'ws',
+    parsedPath: '',
+
+    // 保留旧字段用于兼容
     host: 'localhost',
     port: 18080,
     protocol: 'ws'
@@ -95,9 +78,76 @@ export const useConnectionStore = defineStore('connection', () => {
   // 心跳包定时器
   let heartbeatTimer: NodeJS.Timeout | null = null
 
+  // 核心逻辑：智能地址解析
+  const parseAddress = (): boolean => {
+    let input = serverConfig.value.fullAddress.trim()
+
+    // 1. 如果没有协议头，根据选择的大类自动补全
+    if (!input.includes('://')) {
+      const prefixMap: Record<ProtocolType, string> = {
+        'WebSocket': 'ws://',
+        'TCP': 'tcp://',
+        'UDP': 'udp://',
+        'MQTT': 'mqtt://',
+        'HTTP': 'http://'
+      }
+      input = (prefixMap[serverConfig.value.protocolType] || 'ws://') + input
+    }
+
+    try {
+      const url = new URL(input)
+
+      // 2. 解析并更新底层参数
+      serverConfig.value.parsedHost = url.hostname
+
+      // 端口处理：如果没填端口，根据协议给默认值
+      if (!url.port) {
+        const defaultPorts: Record<string, number> = {
+          'ws:': 80,
+          'wss:': 443,
+          'http:': 80,
+          'https:': 443,
+          'mqtt:': 1883,
+          'tcp:': 18888,
+          'udp:': 18888
+        }
+        serverConfig.value.parsedPort = defaultPorts[url.protocol] || 80
+      } else {
+        serverConfig.value.parsedPort = parseInt(url.port)
+      }
+
+      // 协议处理：区分 ws/wss
+      const protocolStr = url.protocol.replace(':', '')
+      serverConfig.value.parsedProtocol = protocolStr as ConnectionProtocol
+      serverConfig.value.parsedPath = url.pathname + url.search // 保留 /ws/4g?token=xxx
+
+      // 更新兼容字段
+      serverConfig.value.host = serverConfig.value.parsedHost
+      serverConfig.value.port = serverConfig.value.parsedPort
+      serverConfig.value.protocol = serverConfig.value.parsedProtocol
+
+      console.log('地址解析结果:', {
+        host: serverConfig.value.parsedHost,
+        port: serverConfig.value.parsedPort,
+        protocol: serverConfig.value.parsedProtocol,
+        path: serverConfig.value.parsedPath
+      })
+      return true
+    } catch (e) {
+      console.error('地址解析失败:', e)
+      return false
+    }
+  }
+
   // 方法：更新服务器配置
   const updateServerConfig = (config: Partial<ServerConfig>) => {
     serverConfig.value = { ...serverConfig.value, ...config }
+
+    // 如果更新了 protocolType 或 fullAddress，需要重新解析
+    if (config.protocolType || config.fullAddress) {
+      parseAddress()
+    }
+
     saveConfig()
   }
 
@@ -130,9 +180,9 @@ export const useConnectionStore = defineStore('connection', () => {
 
   // 方法：发送数据
   const sendData = async (data: string | Uint8Array): Promise<boolean> => {
-    if (serverConfig.value.protocol === 'ws' || serverConfig.value.protocol === 'wss') {
+    if (serverConfig.value.parsedProtocol === 'ws' || serverConfig.value.parsedProtocol === 'wss') {
       return wsManager.value?.send(data) || false
-    } else if (serverConfig.value.protocol === 'tcp') {
+    } else if (serverConfig.value.parsedProtocol === 'tcp') {
       return await tcpSocket.value?.send(data) || false
     }
     return false
@@ -198,7 +248,7 @@ export const useConnectionStore = defineStore('connection', () => {
     saveConfig()
   }
 
-  // 方法：解析完整的 URL 地址
+  // 方法：解析完整的 URL 地址（兼容旧版本）
   const parseConnectionString = (urlStr: string): boolean => {
     try {
       // 简单的补全，如果用户没写协议，默认 ws://
@@ -212,10 +262,13 @@ export const useConnectionStore = defineStore('connection', () => {
       // 更新 serverConfig
       if (['ws', 'wss', 'tcp', 'udp', 'mqtt', 'http'].includes(protocolStr)) {
         serverConfig.value.protocol = protocolStr as ConnectionProtocol
+        serverConfig.value.parsedProtocol = protocolStr as ConnectionProtocol
       }
 
       serverConfig.value.host = url.hostname
+      serverConfig.value.parsedHost = url.hostname
       serverConfig.value.port = parseInt(url.port) || (protocolStr === 'http' ? 80 : 18080)
+      serverConfig.value.parsedPort = serverConfig.value.port
 
       // 如果 URL 里面带了 ?sn=xxx，也同步更新 deviceConfig
       const sn = url.searchParams.get('sn')
@@ -230,7 +283,7 @@ export const useConnectionStore = defineStore('connection', () => {
     }
   }
 
-  // 方法：保存配置到本地存储
+  // 方法:保存配置到本地存储
   const saveConfig = () => {
     const config = {
       server: serverConfig.value,
@@ -248,7 +301,32 @@ export const useConnectionStore = defineStore('connection', () => {
     if (saved) {
       try {
         const config = JSON.parse(saved)
-        serverConfig.value = config.server || serverConfig.value
+
+        // 加载服务器配置
+        if (config.server) {
+          serverConfig.value = {
+            ...serverConfig.value,
+            ...config.server
+          }
+
+          // 如果旧版本配置没有新字段，初始化它们
+          if (!serverConfig.value.protocolType) {
+            serverConfig.value.protocolType = 'WebSocket'
+          }
+          if (!serverConfig.value.fullAddress) {
+            serverConfig.value.fullAddress = `${serverConfig.value.protocol || 'ws'}://${serverConfig.value.host || 'localhost'}:${serverConfig.value.port || 18080}`
+          }
+          if (!serverConfig.value.parsedHost) {
+            serverConfig.value.parsedHost = serverConfig.value.host || 'localhost'
+          }
+          if (!serverConfig.value.parsedPort) {
+            serverConfig.value.parsedPort = serverConfig.value.port || 18080
+          }
+          if (!serverConfig.value.parsedProtocol) {
+            serverConfig.value.parsedProtocol = serverConfig.value.protocol || 'ws'
+          }
+        }
+
         deviceConfig.value = config.device || deviceConfig.value
         heartbeatConfig.value = config.heartbeat || heartbeatConfig.value
         loginConfig.value = config.login || loginConfig.value
@@ -258,10 +336,12 @@ export const useConnectionStore = defineStore('connection', () => {
         if (serverConfig.value.port === 8080) {
           console.log('Migrating port from 8080 to 18080')
           serverConfig.value.port = 18080
+          serverConfig.value.parsedPort = 18080
         }
         if (serverConfig.value.port === 8888) {
           console.log('Migrating port from 8888 to 18888')
           serverConfig.value.port = 18888
+          serverConfig.value.parsedPort = 18888
         }
 
         // 验证必要字段
@@ -295,6 +375,7 @@ export const useConnectionStore = defineStore('connection', () => {
     updateHeartbeatConfig,
     updateLoginConfig,
     updateDataInteractionConfig,
+    parseAddress,
     parseConnectionString,
     setConnectionStatus,
     setConnectionManager,

@@ -68,7 +68,8 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted } from 'vue'
-import { useConnectionStore, LogEntry } from '@/store/connection'
+import { useConnectionStore } from '@/store/connection'
+import type { LogEntry } from '@shared/types'
 import { Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { DataFormatter } from '@/utils/data-formatter'
@@ -337,13 +338,13 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 0; /* 移除 padding，由内部控制 */
+  padding: 0;
 }
 
 .send-pane {
-  flex-shrink: 0; /* 不允许压缩 */
-  border-bottom: 1px solid #e4e7ed;
-  background: #fff;
+  flex-shrink: 0;
+  border-bottom: 1px solid #333;
+  background: #2d2d2d;
   padding: 12px 16px;
 }
 
@@ -357,41 +358,56 @@ onMounted(() => {
 .title {
   font-size: 14px;
   font-weight: 600;
-  color: #606266;
+  color: #ccc;
 }
 
 .input-area {
-  border: 1px solid #dcdfe6;
+  border: 1px solid #444;
   border-radius: 4px;
   padding: 4px;
   transition: border-color 0.2s;
+  background: #1e1e1e;
 }
 
 .input-area:focus-within {
   border-color: #409eff;
 }
 
-/* 去掉 Element 输入框的边框，使用外层边框 */
+/* 深色主题输入框样式 */
 :deep(.custom-textarea .el-textarea__inner) {
   border: none;
   box-shadow: none;
   padding: 8px;
   font-family: 'Consolas', monospace;
+  background-color: transparent;
+  color: #fff;
+}
+
+:deep(.custom-textarea .el-textarea__inner::placeholder) {
+  color: #666;
 }
 
 .send-tools {
   display: flex;
   justify-content: flex-end;
   padding: 4px 8px 0;
-  border-top: 1px dashed #ebeef5;
+  border-top: 1px dashed #444;
+}
+
+.send-tools .el-button--text {
+  color: #888;
+}
+
+.send-tools .el-button--text:hover {
+  color: #409eff;
 }
 
 .log-pane {
-  flex: 1; /* 自动占据剩余高度 */
+  flex: 1;
   display: flex;
   flex-direction: column;
-  background: #1e1e1e; /* 黑色背景 */
-  min-height: 0; /* 关键：允许 flex 子元素小于内容高度，从而出现滚动条 */
+  background: #1e1e1e;
+  min-height: 0;
 }
 
 .log-pane .pane-header {
@@ -404,6 +420,23 @@ onMounted(() => {
 
 .log-pane .title {
   color: #ccc;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.controls .el-button {
+  color: #888;
+  background: transparent;
+  border-color: #444;
+}
+
+.controls .el-button:hover {
+  color: #f56c6c;
+  border-color: #f56c6c;
 }
 
 .log-scroll-container {
@@ -449,5 +482,29 @@ onMounted(() => {
   text-align: center;
   margin-top: 40px;
   font-style: italic;
+}
+
+/* 深色主题覆盖 Element Plus 样式 */
+:deep(.el-radio-button__inner) {
+  background-color: #2a2a2a;
+  border-color: #444;
+  color: #888;
+}
+
+:deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background-color: #409eff;
+  border-color: #409eff;
+  color: #fff;
+}
+
+:deep(.el-button--primary) {
+  background-color: #409eff;
+  border-color: #409eff;
+}
+
+:deep(.el-button--primary:disabled) {
+  background-color: #333;
+  border-color: #444;
+  color: #666;
 }
 </style>

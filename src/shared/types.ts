@@ -1,6 +1,6 @@
 // 共享类型定义
 
-export type ConnectionProtocol = 'ws' | 'wss' | 'tcp'
+export type ConnectionProtocol = 'ws' | 'wss' | 'tcp' | 'udp' | 'mqtt' | 'http'
 
 export type ConnectionStatus =
   | 'disconnected'
@@ -26,9 +26,16 @@ export interface HeartbeatConfig {
   interval: number
   content: string
   format: DataFormat
-nexport interface DataInteractionConfig {
-  logFormat: DataFormat
 }
+
+export interface LoginConfig {
+  enabled: boolean
+  content: string
+  format: DataFormat
+}
+
+export interface DataInteractionConfig {
+  logFormat: DataFormat
 }
 
 export interface LogEntry {

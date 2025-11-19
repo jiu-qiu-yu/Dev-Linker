@@ -9,29 +9,85 @@
         <div class="form-content">
           <el-form :model="form" label-position="top" size="default">
             <el-card shadow="never" class="config-card">
-              <el-form-item label="协议 & 地址">
-                <el-input v-model="form.host" placeholder="IP/域名">
+              <el-form-item label="服务器地址 (完整格式)">
+                <el-input
+                  v-model="fullAddress"
+                  placeholder="例: ws://localhost:18080"
+                  @blur="handleAddressBlur"
+                  clearable
+                >
                   <template #prepend>
-                    <el-select v-model="form.protocol" style="width: 90px" @change="onProtocolChange">
+                    <el-select v-model="form.protocol" style="width: 85px" @change="updateFullAddress">
                       <el-option label="WS" value="ws" />
                       <el-option label="WSS" value="wss" />
                       <el-option label="TCP" value="tcp" />
+                      <el-option label="UDP" value="udp" disabled />
+                      <el-option label="MQTT" value="mqtt" disabled />
+                      <el-option label="HTTP" value="http" disabled />
                     </el-select>
                   </template>
                 </el-input>
+                <div class="url-preview" v-if="previewUrl">
+                  <small>预览: {{ previewUrl }}</small>
+                </div>
               </el-form-item>
 
-              <el-form-item label="端口">
-                <el-input-number v-model="form.port" :min="1" :max="65535" style="width: 100%" controls-position="right" />
-              </el-form-item>
+              <div class="host-port-row">
+                <el-form-item label="主机" style="flex: 2; margin-right: 10px; margin-bottom: 0;">
+                  <el-input v-model="form.host" @input="updateFullAddress" />
+                </el-form-item>
+                <el-form-item label="端口" style="flex: 1; margin-bottom: 0;">
+                  <el-input-number
+                    v-model="form.port"
+                    :min="1"
+                    :max="65535"
+                    style="width: 100%"
+                    :controls="false"
+                    @change="updateFullAddress"
+                  />
+                </el-form-item>
+              </div>
 
-              <el-form-item label="设备 SN">
+              <el-form-item label="设备序列号 (SN)" style="margin-top: 16px;">
                 <el-input v-model="form.sn" placeholder="唯一标识">
                   <template #append>
                     <el-button @click="generateSN"><el-icon><Refresh /></el-icon></el-button>
                   </template>
                 </el-input>
               </el-form-item>
+            </el-card>
+
+            <el-card shadow="never" class="config-card">
+              <template #header>
+                <div class="card-header-row">
+                  <span>登录/注册包 (连接后发送一次)</span>
+                  <el-switch v-model="form.login.enabled" size="small" :disabled="isConnectionActive" @change="onLoginToggle" />
+                </div>
+              </template>
+
+              <div v-if="form.login.enabled && !isConnectionActive" class="login-options">
+                <el-form-item label="数据格式">
+                  <el-radio-group v-model="form.login.format" size="small" @change="handleLoginFormatChange">
+                    <el-radio-button label="string">字符串</el-radio-button>
+                    <el-radio-button label="hex">十六进制</el-radio-button>
+                  </el-radio-group>
+                </el-form-item>
+
+                <el-form-item label="发送内容">
+                  <el-input
+                    v-model="loginDisplayContent"
+                    type="textarea"
+                    :rows="2"
+                    resize="none"
+                    placeholder="连接成功后立即发送此数据，常用于设备鉴权"
+                    @input="handleLoginInput"
+                  />
+                </el-form-item>
+              </div>
+              <div v-else-if="form.login.enabled" class="login-status">
+                <el-tag size="small" type="info">{{ form.login.format === 'hex' ? 'HEX' : 'STR' }}</el-tag>
+                <span class="content-preview">{{ loginDisplayContent }}</span>
+              </div>
             </el-card>
 
             <el-card shadow="never" class="config-card">
@@ -145,11 +201,16 @@ const tcpSocket = new TCPSocket()
 const form = ref({
   host: 'localhost',
   port: 18080,
-  protocol: 'ws' as 'ws' | 'wss' | 'tcp',
+  protocol: 'ws' as 'ws' | 'wss' | 'tcp' | 'udp' | 'mqtt' | 'http',
   sn: 'DEV-' + Date.now(),
   heartbeat: {
     enabled: false,
     interval: 30,
+    content: '',
+    format: 'string' as 'string' | 'hex'
+  },
+  login: {
+    enabled: false,
     content: '',
     format: 'string' as 'string' | 'hex'
   }
@@ -163,6 +224,25 @@ const rawHeartbeatContent = ref('')
 
 // 心跳内容的显示数据（用于 v-model）
 const heartbeatDisplayContent = ref('')
+
+// 地址栏相关逻辑
+const fullAddress = ref('ws://localhost:18080')
+
+// 预览最终连接地址（带SN）
+const previewUrl = computed(() => {
+  const base = `${form.value.protocol}://${form.value.host}:${form.value.port}`
+  return `${base}?sn=${form.value.sn}`
+})
+
+// 登录包相关变量
+const rawLoginContent = ref('')
+const loginDisplayContent = ref('')
+const lastLoginFormat = ref<'string' | 'hex'>('string')
+
+// 连接状态判断
+const isConnectionActive = computed(() => {
+  return connectionStatus.value === 'connected' || connectionStatus.value === 'connecting'
+})
 
 const connectionStatus = computed(() => connectionStore.connectionStatus)
 
@@ -197,12 +277,15 @@ const canConnect = computed(() => {
   return form.value.host && form.value.port && form.value.sn && !isHeartbeatDisabled.value
 })
 
-const onProtocolChange = (protocol: 'ws' | 'wss' | 'tcp') => {
+const onProtocolChange = (protocol: 'ws' | 'wss' | 'tcp' | 'udp' | 'mqtt' | 'http') => {
   // 根据协议类型调整默认端口
   const defaultPorts = {
     ws: 18080,
     wss: 18443,
-    tcp: 18888
+    tcp: 18888,
+    udp: 18888,
+    mqtt: 18883,
+    http: 8080
   }
   form.value.port = defaultPorts[protocol]
   // 实时保存服务器配置
@@ -210,6 +293,22 @@ const onProtocolChange = (protocol: 'ws' | 'wss' | 'tcp') => {
     protocol,
     port: form.value.port
   })
+  updateFullAddress()
+}
+
+// 地址输入框失焦处理
+const handleAddressBlur = () => {
+  connectionStore.parseConnectionString(fullAddress.value)
+  // 从 store 同步回 form
+  form.value.host = connectionStore.serverConfig.host
+  form.value.port = connectionStore.serverConfig.port
+  form.value.protocol = connectionStore.serverConfig.protocol
+  // 如果 URL 里没 sn，保持原有的 sn 不变
+}
+
+// 手动修改协议/主机/端口时，反向更新 fullAddress
+const updateFullAddress = () => {
+  fullAddress.value = `${form.value.protocol}://${form.value.host}:${form.value.port}`
 }
 
 const generateSN = () => {
@@ -229,6 +328,83 @@ const onHeartbeatToggle = (enabled: boolean) => {
     interval: form.value.heartbeat.interval,
     format: form.value.heartbeat.format
   })
+}
+
+// 登录包 Toggle
+const onLoginToggle = (enabled: boolean) => {
+  if (enabled && !form.value.login.content) {
+    form.value.login.content = 'LOGIN'
+    loginDisplayContent.value = 'LOGIN'
+  }
+  // 保存配置
+  connectionStore.updateLoginConfig({
+    enabled,
+    content: form.value.login.content,
+    format: form.value.login.format
+  })
+}
+
+// 登录包输入处理
+const handleLoginInput = (value: string) => {
+  if (form.value.login.format === 'hex') {
+    const cleaned = DataFormatter.sanitizeHexInput(value)
+    rawLoginContent.value = cleaned
+    loginDisplayContent.value = DataFormatter.formatHexWithSpaces(cleaned)
+    form.value.login.content = cleaned
+  } else {
+    loginDisplayContent.value = value
+    form.value.login.content = value
+  }
+  connectionStore.updateLoginConfig({
+    content: form.value.login.content,
+    format: form.value.login.format
+  })
+}
+
+// 登录包格式转换
+const handleLoginFormatChange = (newFormat: 'string' | 'hex') => {
+  try {
+    const oldFormat = form.value.login.format
+
+    if (newFormat === 'hex') {
+      // 字符串转HEX
+      const currentData = loginDisplayContent.value || form.value.login.content || ''
+      if (currentData.trim() || currentData.length > 0) {
+        const converted = DataFormatter.stringToHex(currentData)
+        rawLoginContent.value = DataFormatter.sanitizeHexInput(converted)
+        loginDisplayContent.value = DataFormatter.formatHexWithSpaces(rawLoginContent.value)
+        form.value.login.content = DataFormatter.sanitizeHexInput(converted)
+      } else {
+        rawLoginContent.value = ''
+        loginDisplayContent.value = ''
+        form.value.login.content = ''
+      }
+    } else {
+      // HEX转字符串
+      const hexData = rawLoginContent.value || form.value.login.content || ''
+      if (hexData) {
+        const converted = DataFormatter.hexToString(hexData)
+        loginDisplayContent.value = converted
+        rawLoginContent.value = ''
+        form.value.login.content = converted
+      } else {
+        loginDisplayContent.value = ''
+        rawLoginContent.value = ''
+        form.value.login.content = ''
+      }
+    }
+
+    // 更新格式并保存配置
+    form.value.login.format = newFormat
+    lastLoginFormat.value = newFormat
+    connectionStore.updateLoginConfig({
+      format: newFormat,
+      content: form.value.login.content
+    })
+  } catch (error) {
+    console.error('Login format conversion error:', error)
+    ElMessage.error('格式转换失败：' + (error as Error).message)
+  }
 }
 
 const handleIntervalChange = (value: number) => {
@@ -454,6 +630,9 @@ onMounted(() => {
   form.value.protocol = connectionStore.serverConfig.protocol || 'ws'
   form.value.sn = connectionStore.deviceConfig.sn || ('DEV-' + Date.now())
 
+  // 初始化地址栏
+  updateFullAddress()
+
   // 获取保存的心跳配置
   const savedHeartbeat = connectionStore.heartbeatConfig
 
@@ -477,6 +656,26 @@ onMounted(() => {
   // 设置lastHeartbeatFormat
   lastHeartbeatFormat.value = form.value.heartbeat.format
 
+  // 获取保存的登录包配置
+  const savedLogin = connectionStore.loginConfig
+
+  // 分别设置登录包字段
+  form.value.login.enabled = savedLogin.enabled ?? false
+  form.value.login.content = savedLogin.content || ''
+  form.value.login.format = savedLogin.format || 'string'
+
+  // 初始化登录包显示
+  if (form.value.login.format === 'hex' && form.value.login.content) {
+    rawLoginContent.value = form.value.login.content
+    loginDisplayContent.value = DataFormatter.formatHexWithSpaces(rawLoginContent.value)
+  } else {
+    loginDisplayContent.value = form.value.login.content
+    rawLoginContent.value = ''
+  }
+
+  // 设置lastLoginFormat
+  lastLoginFormat.value = form.value.login.format
+
   // 确保所有必要字段都有值，防止按钮被禁用
   if (!form.value.host) form.value.host = 'localhost'
   if (!form.value.port) form.value.port = 18080
@@ -486,6 +685,7 @@ onMounted(() => {
 
   console.log('[ConnectionConfig] Config loaded:', {
     heartbeat: savedHeartbeat,
+    login: savedLogin,
     displayContent: heartbeatDisplayContent.value,
     rawContent: rawHeartbeatContent.value
   })
@@ -565,11 +765,40 @@ watch(() => form.value.sn, (newValue) => {
   font-weight: 500;
 }
 
+.host-port-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 0 5px;
+}
+
+.url-preview {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+.content-preview {
+  font-family: 'Consolas', monospace;
+  color: #606266;
+  margin-left: 8px;
+  word-break: break-all;
+}
+
 .heartbeat-options {
   /* 保持原有样式 */
 }
 
 .heartbeat-status {
+  padding: 10px 0;
+}
+
+.login-options {
+  /* 登录包配置样式 */
+}
+
+.login-status {
   padding: 10px 0;
 }
 

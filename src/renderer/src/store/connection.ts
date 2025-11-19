@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { DataFormatter } from '../utils/data-formatter'
 
-export type ConnectionProtocol = 'ws' | 'wss' | 'tcp'
+export type ConnectionProtocol = 'ws' | 'wss' | 'tcp' | 'udp' | 'mqtt' | 'http'
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'failed' | 'reconnecting'
 
 // 前置声明，避免循环导入
@@ -39,6 +39,12 @@ export interface HeartbeatConfig {
   format: 'string' | 'hex'
 }
 
+export interface LoginConfig {
+  enabled: boolean
+  content: string
+  format: 'string' | 'hex'
+}
+
 export interface DataInteractionConfig {
   logFormat: 'string' | 'hex'
 }
@@ -60,6 +66,13 @@ export const useConnectionStore = defineStore('connection', () => {
   const heartbeatConfig = ref<HeartbeatConfig>({
     enabled: false,
     interval: 30,
+    content: '',
+    format: 'string'
+  })
+
+  // 登录包配置
+  const loginConfig = ref<LoginConfig>({
+    enabled: false,
     content: '',
     format: 'string'
   })
@@ -179,12 +192,51 @@ export const useConnectionStore = defineStore('connection', () => {
     saveConfig()
   }
 
+  // 方法：更新登录包配置
+  const updateLoginConfig = (config: Partial<LoginConfig>) => {
+    loginConfig.value = { ...loginConfig.value, ...config }
+    saveConfig()
+  }
+
+  // 方法：解析完整的 URL 地址
+  const parseConnectionString = (urlStr: string): boolean => {
+    try {
+      // 简单的补全，如果用户没写协议，默认 ws://
+      if (!urlStr.includes('://')) {
+        urlStr = 'ws://' + urlStr
+      }
+
+      const url = new URL(urlStr)
+      const protocolStr = url.protocol.replace(':', '')
+
+      // 更新 serverConfig
+      if (['ws', 'wss', 'tcp', 'udp', 'mqtt', 'http'].includes(protocolStr)) {
+        serverConfig.value.protocol = protocolStr as ConnectionProtocol
+      }
+
+      serverConfig.value.host = url.hostname
+      serverConfig.value.port = parseInt(url.port) || (protocolStr === 'http' ? 80 : 18080)
+
+      // 如果 URL 里面带了 ?sn=xxx，也同步更新 deviceConfig
+      const sn = url.searchParams.get('sn')
+      if (sn) {
+        deviceConfig.value.sn = sn
+      }
+
+      return true
+    } catch (e) {
+      console.error('URL Parse Error', e)
+      return false
+    }
+  }
+
   // 方法：保存配置到本地存储
   const saveConfig = () => {
     const config = {
       server: serverConfig.value,
       device: deviceConfig.value,
       heartbeat: heartbeatConfig.value,
+      login: loginConfig.value,
       dataInteraction: dataInteractionConfig.value
     }
     localStorage.setItem('devlinker-config', JSON.stringify(config))
@@ -199,6 +251,7 @@ export const useConnectionStore = defineStore('connection', () => {
         serverConfig.value = config.server || serverConfig.value
         deviceConfig.value = config.device || deviceConfig.value
         heartbeatConfig.value = config.heartbeat || heartbeatConfig.value
+        loginConfig.value = config.login || loginConfig.value
         dataInteractionConfig.value = config.dataInteraction || dataInteractionConfig.value
 
         // 端口兼容处理：如果端口是旧端口，自动迁移到新端口
@@ -230,6 +283,7 @@ export const useConnectionStore = defineStore('connection', () => {
     serverConfig,
     deviceConfig,
     heartbeatConfig,
+    loginConfig,
     dataInteractionConfig,
     connectionStatus,
     currentConnection,
@@ -239,7 +293,9 @@ export const useConnectionStore = defineStore('connection', () => {
     updateServerConfig,
     updateDeviceConfig,
     updateHeartbeatConfig,
+    updateLoginConfig,
     updateDataInteractionConfig,
+    parseConnectionString,
     setConnectionStatus,
     setConnectionManager,
     sendData,

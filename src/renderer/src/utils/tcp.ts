@@ -3,6 +3,9 @@
  * 用于处理 TCP 客户端连接
  */
 
+import { useConnectionStore } from '../store/connection'
+import { DataFormatter } from './data-formatter'
+
 export class TCPSocket {
   private reconnectTimer: NodeJS.Timeout | null = null
   private reconnectAttempts = 0
@@ -18,8 +21,24 @@ export class TCPSocket {
   constructor() {
     // 监听来自主进程的 TCP 事件
     if (window.electronAPI) {
-      window.electronAPI.onTCPConnected(() => {
+      window.electronAPI.onTCPConnected(async () => {
         console.log('[TCP] Connected event received')
+
+        // --- 新增逻辑：发送登录包 ---
+        const store = useConnectionStore()
+        if (store.loginConfig.enabled && store.loginConfig.content) {
+          console.log('[TCP] Sending Login Packet...')
+          let dataToSend: string | Uint8Array = store.loginConfig.content
+
+          if (store.loginConfig.format === 'hex') {
+            dataToSend = DataFormatter.hexToUint8Array(store.loginConfig.content)
+          }
+
+          // 调用自身的 send 方法
+          await this.send(dataToSend)
+        }
+        // -------------------------
+
         this.onOpen?.()
       })
 

@@ -6,3 +6,15 @@
 body {
   @apply text-slate-800 bg-white;
 }
+
+/* 全局选中文本样式 - 高对比度黄色背景 */
+::selection {
+  background-color: #fff200 !important; /* 亮黄色背景 */
+  color: #000000 !important;            /* 黑色文字，高对比度 */
+}
+
+/* Firefox 浏览器兼容性 */
+::-moz-selection {
+  background-color: #fff200 !important; /* 亮黄色背景 */
+  color: #000000 !important;            /* 黑色文字，高对比度 */
+}

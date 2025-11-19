@@ -2,7 +2,12 @@
   <div class="flex flex-col h-full bg-white">
 
     <!-- 日志区 -->
-    <div class="flex-1 overflow-y-auto bg-white log-container" ref="logContainer">
+    <div
+      class="flex-1 overflow-y-auto bg-white log-container"
+      ref="logContainer"
+      :class="{ 'show-scrollbar': isScrollbarVisible }"
+      @scroll="handleScroll"
+    >
       <div v-if="logs.length === 0" class="flex items-center justify-center h-full text-slate-400 text-sm italic">
         暂无日志数据
       </div>
@@ -95,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch, onMounted } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useConnectionStore } from '@/store/connection'
 import type { LogEntry } from '@shared/types'
 import { Delete } from '@element-plus/icons-vue'
@@ -138,6 +143,12 @@ const sendDataDisplay = computed({
 const logContainer = ref<HTMLElement>()
 const logs = ref<LogEntry[]>([])
 
+// 滚动控制相关状态
+const isUserScrolling = ref(false) // 用户是否离开了底部
+const isScrollbarVisible = ref(false) // 滚动条是否可见
+let scrollHideTimer: NodeJS.Timeout | null = null
+let isAutoScrolling = false // 自动滚动标志位
+
 // 计算属性
 const canSend = computed(() => connectionStore.connectionStatus === 'connected')
 
@@ -167,6 +178,41 @@ const getLogTypeLabel = (type: string) => {
 
 const generateId = () => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 9)
+}
+
+// 处理滚动事件
+const handleScroll = () => {
+  const container = logContainer.value
+  if (!container) return
+
+  // 自动滚动时不显示滚动条，只更新位置状态
+  if (isAutoScrolling) {
+    // 自动滚动时检查位置状态
+    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight <= 10
+    if (isAtBottom) {
+      isUserScrolling.value = false // 用户回到底部，恢复自动跟随
+    }
+    return
+  }
+
+  // 用户滚动时显示滚动条
+  isScrollbarVisible.value = true
+  if (scrollHideTimer) clearTimeout(scrollHideTimer)
+
+  // 2s 后自动隐藏
+  scrollHideTimer = setTimeout(() => {
+    isScrollbarVisible.value = false
+  }, 2000)
+
+  // 自动跟随逻辑检测
+  // 允许 10px 的误差
+  const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight <= 10
+
+  if (isAtBottom) {
+    isUserScrolling.value = false // 用户回到底部，恢复自动跟随
+  } else {
+    isUserScrolling.value = true // 用户向上滚动，暂停自动跟随
+  }
 }
 
 const getCurrentTime = () => {
@@ -237,6 +283,12 @@ watch(logFormat, (newFormat, oldFormat) => {
 
 const clearLogs = () => {
   logs.value = []
+  // 清空日志后隐藏滚动条
+  isScrollbarVisible.value = false
+  if (scrollHideTimer) {
+    clearTimeout(scrollHideTimer)
+    scrollHideTimer = null
+  }
 }
 
 const addLog = (type: LogEntry['type'], content: string, originalFormat: 'string' | 'hex' = 'string') => {
@@ -259,11 +311,18 @@ const addLog = (type: LogEntry['type'], content: string, originalFormat: 'string
     format: logFormat.value
   }
   logs.value.push(log)
-  nextTick(() => {
-    if (logContainer.value) {
-      logContainer.value.scrollTop = logContainer.value.scrollHeight
-    }
-  })
+
+  // 仅当用户未处于"浏览历史记录"状态(即在底部)时，才自动滚动
+  if (!isUserScrolling.value) {
+    nextTick(() => {
+      if (logContainer.value) {
+        isAutoScrolling = true // 标记开始自动滚动
+        logContainer.value.scrollTop = logContainer.value.scrollHeight
+        // 下一次事件循环重置，或者在 scroll 事件中重置
+        setTimeout(() => { isAutoScrolling = false }, 50)
+      }
+    })
+  }
 }
 
 const handleSend = async () => {
@@ -350,16 +409,27 @@ defineExpose({
 onMounted(() => {
   // 加载保存的配置
   connectionStore.loadConfig()
+
+  // 确保初始状态下滚动条是隐藏的
+  isScrollbarVisible.value = false
+})
+
+// 清理定时器
+onBeforeUnmount(() => {
+  if (scrollHideTimer) {
+    clearTimeout(scrollHideTimer)
+    scrollHideTimer = null
+  }
 })
 </script>
 
 <style scoped>
-/* 自定义滚动条样式 - 悬停显示模式 */
+/* 自定义滚动条样式 - JavaScript控制显示 */
 
-/* 1. 设置滚动条整体宽度 */
+/* 1. 默认隐藏滚动条 */
 .log-container::-webkit-scrollbar {
-  width: 8px;
-  height: 8px; /* 横向滚动条高度 */
+  width: 0px;  /* 默认宽度为0，完全隐藏 */
+  height: 0px; /* 横向滚动条高度也为0 */
 }
 
 /* 2. 轨道背景保持透明 */
@@ -371,16 +441,20 @@ onMounted(() => {
 .log-container::-webkit-scrollbar-thumb {
   background-color: transparent; /* 默认隐藏 */
   border-radius: 4px;
-  transition: background-color 0.3s; /* 平滑过渡 */
+  transition: background-color 0.3s ease; /* 平滑过渡 */
 }
 
-/* 4. 当鼠标悬停在容器上时，显示滑块 */
-.log-container:hover::-webkit-scrollbar-thumb {
+/* 4. 只有当拥有 show-scrollbar 类时才显示滚动条 */
+.log-container.show-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.log-container.show-scrollbar::-webkit-scrollbar-thumb {
   background-color: #cbd5e1; /* slate-300 */
 }
 
-/* 5. 当鼠标直接悬停在滚动条上时，加深颜色 */
-.log-container::-webkit-scrollbar-thumb:hover {
+.log-container.show-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: #94a3b8; /* slate-400 */
 }
 </style>

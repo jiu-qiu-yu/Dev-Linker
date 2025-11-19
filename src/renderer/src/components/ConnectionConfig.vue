@@ -12,10 +12,9 @@
       </div>
 
       <div class="p-4 relative">
-        <div v-if="isConnectionActive" class="absolute inset-0 bg-slate-50/80 backdrop-blur-[1px] z-10 flex items-center justify-center cursor-not-allowed rounded-b-xl">
-          <div class="flex flex-col items-center gap-2 text-slate-400">
-            <el-icon :size="20"><Lock /></el-icon>
-            <span class="text-xs">连接中,SN已锁定</span>
+        <div v-if="isConnectionActive" class="absolute inset-0 z-10 flex items-center justify-center pointer-events-none rounded-b-xl">
+          <div class="flex flex-col items-center gap-2 text-slate-300/50">
+            <el-icon :size="40"><Lock /></el-icon>
           </div>
         </div>
 
@@ -63,8 +62,8 @@
       </div>
 
       <div class="p-4 relative">
-        <div v-if="isConnectionActive && store.loginConfig.enabled" class="absolute inset-0 bg-slate-50/80 backdrop-blur-[1px] z-10 flex items-end justify-end p-3 rounded-b-xl cursor-not-allowed">
-          <el-icon :size="16" class="text-slate-400"><Lock /></el-icon>
+        <div v-if="isConnectionActive && store.loginConfig.enabled" class="absolute inset-0 z-10 flex items-end justify-end p-3 rounded-b-xl pointer-events-none">
+          <el-icon :size="16" class="text-slate-300"><Lock /></el-icon>
         </div>
 
         <div>
@@ -121,8 +120,8 @@
       </div>
 
       <div class="p-4 relative">
-        <div v-if="isHeartbeatDisabled && store.heartbeatConfig.enabled" class="absolute inset-0 bg-slate-50/80 backdrop-blur-[1px] z-10 flex items-end justify-end p-3 rounded-b-xl cursor-not-allowed">
-          <el-icon :size="16" class="text-slate-400"><Lock /></el-icon>
+        <div v-if="isHeartbeatDisabled && store.heartbeatConfig.enabled" class="absolute inset-0 z-10 flex items-end justify-end p-3 rounded-b-xl pointer-events-none">
+          <el-icon :size="16" class="text-slate-300"><Lock /></el-icon>
         </div>
 
         <div>

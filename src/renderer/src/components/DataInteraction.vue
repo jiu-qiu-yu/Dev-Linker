@@ -354,23 +354,33 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 自定义滚动条样式 */
+/* 自定义滚动条样式 - 悬停显示模式 */
+
+/* 1. 设置滚动条整体宽度 */
 .log-container::-webkit-scrollbar {
   width: 8px;
+  height: 8px; /* 横向滚动条高度 */
 }
 
+/* 2. 轨道背景保持透明 */
 .log-container::-webkit-scrollbar-track {
-  background: #f1f5f9; /* slate-100 */
-  border-radius: 4px;
+  background: transparent;
 }
 
+/* 3. 滑块样式：默认透明 */
 .log-container::-webkit-scrollbar-thumb {
-  background: #cbd5e1; /* slate-300 */
+  background-color: transparent; /* 默认隐藏 */
   border-radius: 4px;
-  transition: background 0.2s;
+  transition: background-color 0.3s; /* 平滑过渡 */
 }
 
+/* 4. 当鼠标悬停在容器上时，显示滑块 */
+.log-container:hover::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1; /* slate-300 */
+}
+
+/* 5. 当鼠标直接悬停在滚动条上时，加深颜色 */
 .log-container::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8; /* slate-400 */
+  background-color: #94a3b8; /* slate-400 */
 }
 </style>

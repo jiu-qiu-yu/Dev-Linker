@@ -140,9 +140,10 @@ const sendPlaceholder = computed(() => {
     : '请输入十六进制数据，例如：48656C6C6F20576F726C64'
 })
 
+// 使用独立的数据交互配置，而不是心跳包配置
 const logFormat = computed({
-  get: () => connectionStore.heartbeatConfig.format,
-  set: (value) => connectionStore.updateHeartbeatConfig({ format: value })
+  get: () => connectionStore.dataInteractionConfig.logFormat,
+  set: (value) => connectionStore.updateDataInteractionConfig({ logFormat: value })
 })
 
 const getLogTypeText = (type: LogEntry['type']) => {

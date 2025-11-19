@@ -26,6 +26,9 @@ export interface HeartbeatConfig {
   interval: number
   content: string
   format: DataFormat
+nexport interface DataInteractionConfig {
+  logFormat: DataFormat
+}
 }
 
 export interface LogEntry {

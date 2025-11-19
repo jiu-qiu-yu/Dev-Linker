@@ -3,12 +3,13 @@
  * 负责配置的保存、加载和持久化
  */
 
-import type { ServerConfig, DeviceConfig, HeartbeatConfig } from '@shared/types'
+import type { ServerConfig, DeviceConfig, HeartbeatConfig, DataInteractionConfig } from '@shared/types'
 
 export interface AppConfig {
   server: ServerConfig
   device: DeviceConfig
   heartbeat: HeartbeatConfig
+  dataInteraction: DataInteractionConfig
 }
 
 export class ConfigManager {
@@ -96,7 +97,7 @@ export class ConfigManager {
       const imported = JSON.parse(jsonString)
 
       // 验证必需字段
-      if (!imported.server || !imported.device || !imported.heartbeat) {
+      if (!imported.server || !imported.device || !imported.heartbeat || !imported.dataInteraction) {
         throw new Error('配置文件格式不正确')
       }
 
@@ -128,6 +129,9 @@ export class ConfigManager {
         interval: 30,
         content: 'PING',
         format: 'string'
+      },
+      dataInteraction: {
+        logFormat: 'string'
       }
     }
   }

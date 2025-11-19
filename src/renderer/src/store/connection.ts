@@ -39,6 +39,10 @@ export interface HeartbeatConfig {
   format: 'string' | 'hex'
 }
 
+export interface DataInteractionConfig {
+  logFormat: 'string' | 'hex'
+}
+
 export const useConnectionStore = defineStore('connection', () => {
   // 服务器配置
   const serverConfig = ref<ServerConfig>({
@@ -58,6 +62,11 @@ export const useConnectionStore = defineStore('connection', () => {
     interval: 30,
     content: '',
     format: 'string'
+  })
+
+  // 数据交互配置（独立于心跳包）
+  const dataInteractionConfig = ref<DataInteractionConfig>({
+    logFormat: 'string'
   })
 
   // 连接状态
@@ -164,12 +173,19 @@ export const useConnectionStore = defineStore('connection', () => {
     }
   }
 
+  // 方法：更新数据交互配置
+  const updateDataInteractionConfig = (config: Partial<DataInteractionConfig>) => {
+    dataInteractionConfig.value = { ...dataInteractionConfig.value, ...config }
+    saveConfig()
+  }
+
   // 方法：保存配置到本地存储
   const saveConfig = () => {
     const config = {
       server: serverConfig.value,
       device: deviceConfig.value,
-      heartbeat: heartbeatConfig.value
+      heartbeat: heartbeatConfig.value,
+      dataInteraction: dataInteractionConfig.value
     }
     localStorage.setItem('devlinker-config', JSON.stringify(config))
   }
@@ -183,6 +199,7 @@ export const useConnectionStore = defineStore('connection', () => {
         serverConfig.value = config.server || serverConfig.value
         deviceConfig.value = config.device || deviceConfig.value
         heartbeatConfig.value = config.heartbeat || heartbeatConfig.value
+        dataInteractionConfig.value = config.dataInteraction || dataInteractionConfig.value
 
         // 端口兼容处理：如果端口是旧端口，自动迁移到新端口
         if (serverConfig.value.port === 8080) {
@@ -213,6 +230,7 @@ export const useConnectionStore = defineStore('connection', () => {
     serverConfig,
     deviceConfig,
     heartbeatConfig,
+    dataInteractionConfig,
     connectionStatus,
     currentConnection,
     wsManager,
@@ -221,6 +239,7 @@ export const useConnectionStore = defineStore('connection', () => {
     updateServerConfig,
     updateDeviceConfig,
     updateHeartbeatConfig,
+    updateDataInteractionConfig,
     setConnectionStatus,
     setConnectionManager,
     sendData,

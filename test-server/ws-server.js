@@ -37,8 +37,12 @@ wss.on('connection', (ws, req) => {
       ws.send(data, { binary: true })
     } else {
       // 文本数据（字符串模式发送），直接显示原始字符串
-      const receivedData = data.toString('utf8')
-      console.log(`[0] [WS Server] Received(str):${receivedData}`)
+      let receivedData = data.toString('utf8')
+      // 如果数据带"STR:"前缀，需要移除
+      if (receivedData.startsWith('STR:')) {
+        receivedData = receivedData.substring(4)
+      }
+      console.log(`[0] [WS Server] Received(STR):${receivedData}`)
 
       // 原样返回接收到的数据
       ws.send(JSON.stringify({

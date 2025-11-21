@@ -43,6 +43,22 @@ export interface HeartbeatConfig {
   format: DataFormat
 }
 
+// MQTT 特定配置
+export interface MQTTConfig {
+  clientId?: string
+  username?: string
+  password?: string
+  topic?: string  // 默认订阅/发布的主题
+  qos?: 0 | 1 | 2  // 服务质量等级
+}
+
+// HTTP 特定配置
+export interface HTTPConfig {
+  endpoint?: string  // 默认端点路径
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  headers?: Record<string, string>  // 自定义请求头
+}
+
 export interface LoginConfig {
   enabled: boolean
   content: string

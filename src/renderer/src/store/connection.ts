@@ -21,6 +21,17 @@ export interface TCPSocket {
   onData?: (data: string) => void
 }
 
+export interface UDPSocket {
+  send(data: string | Uint8Array): Promise<boolean>
+  connect(host: string, port: number, localPort?: number): Promise<void>
+  disconnect(): void
+  isConnected(): Promise<boolean>
+  onOpen?: () => void
+  onClose?: () => void
+  onError?: (error: Error) => void
+  onData?: (data: Buffer | string) => void
+}
+
 export const useConnectionStore = defineStore('connection', () => {
   // 服务器配置 - 新增字段以支持完整地址输入
   const serverConfig = ref<ServerConfig>({
@@ -74,6 +85,7 @@ export const useConnectionStore = defineStore('connection', () => {
   // 连接管理器实例
   const wsManager = ref<WebSocketManager | null>(null)
   const tcpSocket = ref<TCPSocket | null>(null)
+  const udpSocket = ref<UDPSocket | null>(null)
 
   // 心跳包定时器
   let heartbeatTimer: NodeJS.Timeout | null = null
@@ -95,10 +107,29 @@ export const useConnectionStore = defineStore('connection', () => {
     }
 
     try {
-      const url = new URL(input)
+      // 🔧 TCP/UDP 协议不是标准 URL 协议，需要特殊处理
+      // 将 tcp:// 和 udp:// 临时替换为 http:// 进行解析，然后再改回来
+      let tempInput = input
+      let originalProtocol = ''
+
+      if (input.startsWith('tcp://')) {
+        tempInput = input.replace('tcp://', 'http://')
+        originalProtocol = 'tcp'
+      } else if (input.startsWith('udp://')) {
+        tempInput = input.replace('udp://', 'http://')
+        originalProtocol = 'udp'
+      }
+
+      const url = new URL(tempInput)
 
       // 2. 解析并更新底层参数
       serverConfig.value.parsedHost = url.hostname
+
+      // 🔧 验证 hostname 不能为空（修复 UDP 地址解析 BUG）
+      if (!serverConfig.value.parsedHost || serverConfig.value.parsedHost.trim() === '') {
+        console.error('地址解析失败: hostname 为空')
+        return false
+      }
 
       // 端口处理：如果没填端口，根据协议给默认值
       if (!url.port) {
@@ -109,15 +140,23 @@ export const useConnectionStore = defineStore('connection', () => {
           'https:': 443,
           'mqtt:': 1883,
           'tcp:': 18888,
-          'udp:': 18888
+          'udp:': 19000
         }
-        serverConfig.value.parsedPort = defaultPorts[url.protocol] || 80
+        // 如果是 tcp/udp 协议，使用原始协议名查询默认端口
+        const protocolKey = originalProtocol ? `${originalProtocol}:` : url.protocol
+        serverConfig.value.parsedPort = defaultPorts[protocolKey] || 80
       } else {
         serverConfig.value.parsedPort = parseInt(url.port)
       }
 
-      // 协议处理：区分 ws/wss
-      const protocolStr = url.protocol.replace(':', '')
+      // 协议处理：如果是临时替换的协议，改回原始协议
+      let protocolStr: string
+      if (originalProtocol) {
+        protocolStr = originalProtocol
+      } else {
+        protocolStr = url.protocol.replace(':', '')
+      }
+
       serverConfig.value.parsedProtocol = protocolStr as ConnectionProtocol
       serverConfig.value.parsedPath = url.pathname + url.search // 保留 /ws/4g?token=xxx
 
@@ -170,11 +209,16 @@ export const useConnectionStore = defineStore('connection', () => {
   }
 
   // 方法：设置连接管理器
-  const setConnectionManager = (type: 'ws' | 'tcp', manager: WebSocketManager | TCPSocket | null) => {
+  const setConnectionManager = (
+    type: 'ws' | 'tcp' | 'udp',
+    manager: WebSocketManager | TCPSocket | UDPSocket | null
+  ) => {
     if (type === 'ws') {
       wsManager.value = manager as WebSocketManager
-    } else {
+    } else if (type === 'tcp') {
       tcpSocket.value = manager as TCPSocket
+    } else if (type === 'udp') {
+      udpSocket.value = manager as UDPSocket
     }
   }
 
@@ -184,6 +228,8 @@ export const useConnectionStore = defineStore('connection', () => {
       return wsManager.value?.send(data) || false
     } else if (serverConfig.value.parsedProtocol === 'tcp') {
       return await tcpSocket.value?.send(data) || false
+    } else if (serverConfig.value.parsedProtocol === 'udp') {
+      return await udpSocket.value?.send(data) || false
     }
     return false
   }
@@ -369,6 +415,7 @@ export const useConnectionStore = defineStore('connection', () => {
     currentConnection,
     wsManager,
     tcpSocket,
+    udpSocket,
     // actions
     updateServerConfig,
     updateDeviceConfig,

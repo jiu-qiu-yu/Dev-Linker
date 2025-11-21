@@ -1,10 +1,12 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { TCPSocketManager } from './tcp-socket'
+import { UDPSocketManager } from './udp-socket'
 
 class AppWindow {
   private mainWindow: any = null
   private tcpManager: TCPSocketManager | null = null
+  private udpManager: UDPSocketManager | null = null
 
   constructor() {
     this.setupApp()
@@ -71,7 +73,8 @@ class AppWindow {
       this.mainWindow?.webContents.send('tcp-connected')
     })
 
-    this.tcpManager.on('disconnected', () => {
+    // 'close' 事件对应断开连接
+    this.tcpManager.on('close', () => {
       this.mainWindow?.webContents.send('tcp-disconnected')
     })
 
@@ -85,6 +88,26 @@ class AppWindow {
 
     this.tcpManager.on('timeout', () => {
       this.mainWindow?.webContents.send('tcp-error', 'Connection timeout')
+    })
+
+    // 创建 UDP Socket 管理器实例
+    this.udpManager = new UDPSocketManager()
+
+    // 监听 UDP 事件并转发到渲染进程
+    this.udpManager.on('connected', () => {
+      this.mainWindow?.webContents.send('udp-connected')
+    })
+
+    this.udpManager.on('close', () => {
+      this.mainWindow?.webContents.send('udp-disconnected')
+    })
+
+    this.udpManager.on('data', (data: Buffer) => {
+      this.mainWindow?.webContents.send('udp-data', data.toString())
+    })
+
+    this.udpManager.on('error', (error: Error) => {
+      this.mainWindow?.webContents.send('udp-error', error.message)
     })
 
     // 文件对话框
@@ -119,7 +142,18 @@ class AppWindow {
     // TCP 发送数据
     ipcMain.handle('tcp-send', async (_event: any, { data }: { data: string }) => {
       if (this.tcpManager && this.tcpManager.isConnected()) {
-        return this.tcpManager.send(data)
+        // 检测是否为纯HEX字符串（只包含0-9A-F）
+        const isHex = /^[0-9A-Fa-f]+$/.test(data.replace(/\s/g, ''))
+
+        if (isHex) {
+          // 是HEX字符串，转换为Buffer
+          const cleanHex = data.replace(/\s/g, '') // 移除空格
+          const buffer = Buffer.from(cleanHex, 'hex')
+          return this.tcpManager.send(buffer)
+        } else {
+          // 普通字符串，直接发送
+          return this.tcpManager.send(data)
+        }
       }
       return false
     })
@@ -127,6 +161,50 @@ class AppWindow {
     // TCP 连接状态
     ipcMain.handle('tcp-is-connected', async () => {
       return this.tcpManager?.isConnected() || false
+    })
+
+    // UDP 连接处理
+    ipcMain.handle('udp-connect', async (_event: any, { host, port, localPort }: { host: string, port: number, localPort?: number }) => {
+      try {
+        await this.udpManager!.connect({ host, port, localPort })
+        return true
+      } catch (error) {
+        console.error('[Main] UDP connect error:', error)
+        throw error
+      }
+    })
+
+    // UDP 断开连接
+    ipcMain.handle('udp-disconnect', async () => {
+      if (this.udpManager) {
+        this.udpManager.disconnect()
+        return true
+      }
+      return false
+    })
+
+    // UDP 发送数据
+    ipcMain.handle('udp-send', async (_event: any, { data }: { data: string }) => {
+      if (this.udpManager && this.udpManager.isConnected()) {
+        // 检测是否为纯HEX字符串（只包含0-9A-F）
+        const isHex = /^[0-9A-Fa-f]+$/.test(data.replace(/\s/g, ''))
+
+        if (isHex) {
+          // 是HEX字符串，转换为Buffer
+          const cleanHex = data.replace(/\s/g, '') // 移除空格
+          const buffer = Buffer.from(cleanHex, 'hex')
+          return this.udpManager.send(buffer)
+        } else {
+          // 普通字符串，直接发送
+          return this.udpManager.send(data)
+        }
+      }
+      return false
+    })
+
+    // UDP 连接状态
+    ipcMain.handle('udp-is-connected', async () => {
+      return this.udpManager?.isConnected() || false
     })
   }
 }

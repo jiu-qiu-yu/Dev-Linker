@@ -14,7 +14,7 @@
           <el-select v-model="store.serverConfig.protocolType" class="w-32" size="default" @change="handleProtocolTypeChange">
             <el-option label="WebSocket" value="WebSocket" />
             <el-option label="TCP" value="TCP" />
-            <el-option label="UDP" value="UDP" disabled />
+            <el-option label="UDP" value="UDP" />
             <el-option label="MQTT" value="MQTT" disabled />
             <el-option label="HTTP" value="HTTP" disabled />
           </el-select>
@@ -98,6 +98,7 @@ import ConnectionConfig from '@/components/ConnectionConfig.vue'
 import DataInteraction from '@/components/DataInteraction.vue'
 import { WebSocketManager } from '@/utils/websocket'
 import { TCPSocket } from '@/utils/tcp'
+import { UDPSocket } from '@/utils/udp'
 import { DataFormatter } from '@/utils/data-formatter'
 import { ElMessage } from 'element-plus'
 
@@ -108,6 +109,7 @@ const dataInteractionRef = ref<InstanceType<typeof DataInteraction> | null>(null
 // 连接管理器实例
 const wsManager = new WebSocketManager()
 const tcpSocket = new TCPSocket()
+const udpSocket = new UDPSocket()
 
 const isConnected = computed(() => store.connectionStatus === 'connected')
 const isConnecting = computed(() => store.connectionStatus === 'connecting')
@@ -138,7 +140,7 @@ const addressPlaceholder = computed(() => {
   switch (store.serverConfig.protocolType) {
     case 'WebSocket': return 'localhost:18080 或 remote.com/path'
     case 'TCP': return 'localhost:18888'
-    case 'UDP': return 'localhost:18888'
+    case 'UDP': return 'localhost:19000'
     case 'MQTT': return 'localhost:1883'
     case 'HTTP': return 'localhost:8080'
     default: return '请输入服务器地址'
@@ -151,7 +153,7 @@ const handleProtocolTypeChange = (type: string) => {
   const defaultAddresses: Record<string, string> = {
     'WebSocket': 'ws://localhost:18080',
     'TCP': 'tcp://localhost:18888',
-    'UDP': 'udp://localhost:18888',
+    'UDP': 'udp://localhost:19000',
     'MQTT': 'mqtt://localhost:1883',
     'HTTP': 'http://localhost:8080'
   }
@@ -177,7 +179,7 @@ const handleConnectionAction = async () => {
 const handleConnect = async () => {
   // 1. 先解析地址
   if (!store.parseAddress()) {
-    ElMessage.error({ message: '地址格式错误，请检查输入', duration: 2000 })
+    ElMessage.error({ message: '地址格式错误，请检查输入（需包含主机名）', duration: 2000 })
     return
   }
 
@@ -260,6 +262,41 @@ const handleConnect = async () => {
 
       // 建立连接
       await tcpSocket.connect(parsedHost, parsedPort)
+
+    } else if (parsedProtocol === 'udp') {
+      // UDP 连接
+      udpSocket.onOpen = () => {
+        console.log('UDP socket ready')
+        store.setConnectionStatus('connected')
+        store.setConnectionManager('udp', udpSocket)
+        ElMessage.success({ message: 'UDP 连接成功', duration: 2000 })
+
+        // 发送登录包
+        sendLoginPacket()
+      }
+
+      udpSocket.onClose = () => {
+        console.log('UDP socket closed')
+        store.setConnectionStatus('disconnected')
+        store.setConnectionManager('udp', null)
+        ElMessage.info({ message: 'UDP 已断开', duration: 2000 })
+      }
+
+      udpSocket.onError = (error) => {
+        console.error('UDP error:', error)
+        store.setConnectionStatus('failed')
+        ElMessage.error({ message: 'UDP 错误: ' + error.message, duration: 2000 })
+      }
+
+      udpSocket.onData = (data) => {
+        console.log('UDP data received:', data)
+        if (dataInteractionRef.value) {
+          dataInteractionRef.value.simulateReceiveData(data.toString())
+        }
+      }
+
+      // 建立 UDP Socket（本地端口可选，此处使用默认）
+      await udpSocket.connect(parsedHost, parsedPort)
     }
 
   } catch (error) {
@@ -295,6 +332,9 @@ const handleDisconnect = () => {
   } else if (protocol === 'tcp') {
     tcpSocket.disconnect()
     store.setConnectionManager('tcp', null)
+  } else if (protocol === 'udp') {
+    udpSocket.disconnect()
+    store.setConnectionManager('udp', null)
   }
 
   store.setConnectionStatus('disconnected')

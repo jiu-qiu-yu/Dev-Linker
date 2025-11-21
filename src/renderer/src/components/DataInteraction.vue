@@ -342,7 +342,7 @@ const handleSend = async () => {
     }
 
     // 检查连接管理器
-    if (!connectionStore.wsManager && !connectionStore.tcpSocket) {
+    if (!connectionStore.wsManager && !connectionStore.tcpSocket && !connectionStore.udpSocket) {
       ElMessage.error({ message: '连接管理器未初始化', duration: 2000 })
       addLog('error', '发送失败: 连接管理器未初始化')
       return

@@ -1,20 +1,17 @@
-/**
- * WebSocket 测试服务器
- * 用于开发和测试 WebSocket 连接功能
- */
-
 const WebSocket = require('ws')
 
 const PORT = 18080
 const wss = new WebSocket.Server({ port: PORT })
 
-console.log(`[WS Server] WebSocket test server started on port ${PORT}`)
+wss.on('listening', () => {
+  console.log(`[WebSocket] 服务器已启动 - 端口: ${PORT}`)
+})
 
 wss.on('connection', (ws, req) => {
   const clientIP = req.socket.remoteAddress
   const sn = new URL(req.url, `http://${req.headers.host}`).searchParams.get('sn')
 
-  console.log(`[WS Server] Client connected: ${clientIP}, SN: ${sn || 'N/A'}`)
+  console.log(`[WebSocket] 客户端连接 - IP: ${clientIP}, SN: ${sn || 'N/A'}`)
 
   // 发送欢迎消息
   ws.send(JSON.stringify({
@@ -27,24 +24,22 @@ wss.on('connection', (ws, req) => {
   // 监听消息
   ws.on('message', (data, isBinary) => {
     if (isBinary) {
-      // 二进制数据（HEX模式发送），转换为HEX显示
+      // 二进制数据
       const hexString = data.toString('hex').toUpperCase()
-      // 格式化HEX显示（每两个字符加一个空格）
       const formattedHex = hexString.match(/.{1,2}/g).join(' ')
-      console.log(`[WS Server] Received(HEX): ${formattedHex}`)
+      console.log(`[WebSocket] 接收数据(HEX) - 长度: ${data.length}字节, 内容: ${formattedHex}`)
 
       // 返回二进制数据的echo
       ws.send(data, { binary: true })
     } else {
-      // 文本数据（字符串模式发送），直接显示原始字符串
+      // 文本数据
       let receivedData = data.toString('utf8')
-      // 如果数据带"STR:"前缀，需要移除
       if (receivedData.startsWith('STR:')) {
         receivedData = receivedData.substring(4)
       }
-      console.log(`[0] [WS Server] Received(STR):${receivedData}`)
+      console.log(`[WebSocket] 接收数据(STR) - 内容: ${receivedData}`)
 
-      // 原样返回接收到的数据
+      // 原样返回
       ws.send(JSON.stringify({
         type: 'echo',
         data: receivedData,
@@ -53,7 +48,7 @@ wss.on('connection', (ws, req) => {
       }))
     }
 
-    // 随机发送测试数据
+    // 发送测试数据
     setTimeout(() => {
       ws.send(JSON.stringify({
         type: 'test-data',
@@ -64,19 +59,30 @@ wss.on('connection', (ws, req) => {
   })
 
   ws.on('close', () => {
-    console.log('[WS Server] Client disconnected')
+    console.log(`[WebSocket] 客户端断开 - IP: ${clientIP}`)
   })
 
   ws.on('error', (error) => {
-    console.error('[WS Server] WebSocket error:', error)
+    console.error(`[WebSocket] 错误: ${error.message}`)
   })
+})
+
+wss.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`[WebSocket] 服务器错误: 端口 ${PORT} 已被占用`)
+  } else {
+    console.error(`[WebSocket] 服务器错误: ${error.message}`)
+  }
+  // 以非0退出码退出，表示启动失败
+  setTimeout(() => process.exit(1), 100)
 })
 
 // 优雅关闭
 process.on('SIGINT', () => {
-  console.log('\n[WS Server] Shutting down...')
+  console.log('\n[WebSocket] 服务器关闭中...')
   wss.close(() => {
-    console.log('[WS Server] Server closed')
+    console.log('[WebSocket] 服务器已关闭')
     process.exit(0)
   })
 })
+

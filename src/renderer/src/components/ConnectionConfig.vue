@@ -176,6 +176,128 @@
       </div>
     </div>
 
+    <!-- HTTP 配置卡片 -->
+    <div v-if="store.serverConfig.protocolType === 'HTTP'" class="bg-white rounded-xl border border-slate-200 shadow-sm-soft overflow-hidden transition-all duration-200 hover:shadow-card">
+      <div class="flex justify-between items-center px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+        <div class="flex items-center gap-2">
+          <div class="w-1.5 h-1.5 rounded-full bg-brand-500"></div>
+          <span class="text-sm font-semibold text-slate-700">HTTP 请求配置</span>
+        </div>
+        <el-icon :size="14" class="text-slate-400"><Setting /></el-icon>
+      </div>
+
+      <div class="p-4 relative">
+        <div v-if="isConnectionActive" class="absolute inset-0 z-10 flex items-end justify-end p-3 rounded-b-xl pointer-events-none">
+          <el-icon :size="16" class="text-slate-300"><Lock /></el-icon>
+        </div>
+
+        <div class="flex flex-col gap-4">
+          <!-- 第一部分：请求方式选择 -->
+          <div>
+            <label class="text-xs text-slate-500 mb-1.5 block font-medium">请求方式</label>
+            <el-select
+              v-model="store.httpConfig.method"
+              size="default"
+              :disabled="isConnectionActive"
+              @change="handleMethodChange"
+              class="w-full"
+            >
+              <el-option label="GET" value="GET" />
+              <el-option label="POST" value="POST" />
+            </el-select>
+          </div>
+
+          <!-- 第二部分：自定义请求头 -->
+          <div>
+            <label class="text-xs text-slate-500 mb-1.5 block font-medium">自定义请求头（可选）</label>
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto">
+              <div v-if="!isConnectionActive" class="flex flex-col gap-2">
+                <div v-for="(value, key) in store.httpConfig.headers" :key="key" class="flex gap-2 items-center">
+                  <el-input
+                    v-model="headerKeys[key]"
+                    placeholder="Header 键"
+                    size="small"
+                    class="flex-1"
+                    readonly
+                  />
+                  <el-input
+                    v-model="store.httpConfig.headers[key]"
+                    placeholder="Header 值"
+                    size="small"
+                    class="flex-1"
+                    @change="handleHeaderChange"
+                  />
+                  <el-button size="small" type="danger" text @click="removeHeader(key)">
+                    <el-icon><Close /></el-icon>
+                  </el-button>
+                </div>
+                <el-button
+                  v-if="Object.keys(store.httpConfig.headers || {}).length === 0"
+                  size="small"
+                  type="primary"
+                  plain
+                  @click="addHeader"
+                  class="w-full"
+                >
+                  <el-icon><Plus /></el-icon>
+                  <span class="ml-1">添加请求头</span>
+                </el-button>
+                <el-button
+                  v-else
+                  size="small"
+                  type="primary"
+                  text
+                  @click="addHeader"
+                >
+                  <el-icon><Plus /></el-icon>
+                  <span class="ml-1">继续添加</span>
+                </el-button>
+              </div>
+              <div v-else class="text-sm text-slate-600">
+                <div v-if="Object.keys(store.httpConfig.headers || {}).length === 0" class="text-slate-400 text-center py-2">
+                  无自定义请求头
+                </div>
+                <div v-else class="space-y-1">
+                  <div v-for="(value, key) in store.httpConfig.headers" :key="key" class="flex justify-between items-center py-1.5 border-b border-slate-100 last:border-0">
+                    <span class="font-mono text-xs text-slate-500 font-medium">{{ key }}</span>
+                    <span class="font-mono text-xs text-slate-700">{{ value }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 第三部分：URL 解析结果 -->
+          <div>
+            <label class="text-xs text-slate-500 mb-1.5 block font-medium">URL 解析结果</label>
+            <div v-if="store.httpConfig.parsedScheme" class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div class="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-600 font-medium">协议</span>
+                  <span class="font-semibold text-blue-700 uppercase">{{ store.httpConfig.parsedScheme }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-600 font-medium">端口</span>
+                  <span class="font-mono font-semibold text-blue-700">{{ store.httpConfig.parsedPort }}</span>
+                </div>
+                <div class="col-span-2 flex items-center justify-between">
+                  <span class="text-slate-600 font-medium">主机</span>
+                  <span class="font-mono text-xs text-blue-700 font-semibold">{{ store.httpConfig.parsedHost }}</span>
+                </div>
+                <div class="col-span-2 flex items-start justify-between gap-2">
+                  <span class="text-slate-600 font-medium flex-shrink-0">路径</span>
+                  <span class="font-mono text-xs text-blue-700 break-all text-right font-semibold">{{ store.httpConfig.parsedPath || '/' }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-else class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+              <span class="text-xs text-slate-400">请在顶部地址栏输入完整 HTTP URL</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -183,7 +305,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useConnectionStore } from '@/store/connection'
 import { DataFormatter } from '@/utils/data-formatter'
-import { Refresh, Setting, Lock } from '@element-plus/icons-vue'
+import { Refresh, Setting, Lock, Close, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 const store = useConnectionStore()
@@ -197,6 +319,9 @@ const heartbeatDisplayContent = ref('')
 // 登录包相关变量
 const rawLoginContent = ref('')
 const loginDisplayContent = ref('')
+
+// HTTP 配置相关
+const headerKeys = ref<Record<string, string>>({})
 
 // 连接状态判断
 const isConnectionActive = computed(() => {
@@ -386,6 +511,30 @@ const handleFormatChange = (newFormat: 'string' | 'hex') => {
   }
 }
 
+// HTTP 配置处理方法
+const handleMethodChange = (value: 'GET' | 'POST') => {
+  store.updateHTTPConfig({ method: value })
+}
+
+const handleHeaderChange = () => {
+  store.updateHTTPConfig({ headers: { ...store.httpConfig.headers } })
+}
+
+const addHeader = () => {
+  const key = `Header-${Date.now()}`
+  const headers = { ...store.httpConfig.headers }
+  headers[key] = ''
+  headerKeys.value[key] = key
+  store.updateHTTPConfig({ headers })
+}
+
+const removeHeader = (key: string) => {
+  const headers = { ...store.httpConfig.headers }
+  delete headers[key]
+  delete headerKeys.value[key]
+  store.updateHTTPConfig({ headers })
+}
+
 // [新增] 监听 Store 变化以处理持久化数据的延迟加载
 watch(() => store.loginConfig, (newConfig) => {
   // 仅当本地显示为空且 Store 有值时同步，避免覆盖用户正在输入的内容
@@ -427,6 +576,13 @@ onMounted(() => {
   } else {
     loginDisplayContent.value = store.loginConfig.content || ''
     rawLoginContent.value = ''
+  }
+
+  // 初始化 HTTP 请求头键值映射
+  if (store.httpConfig.headers) {
+    Object.keys(store.httpConfig.headers).forEach(key => {
+      headerKeys.value[key] = key
+    })
   }
 })
 </script>

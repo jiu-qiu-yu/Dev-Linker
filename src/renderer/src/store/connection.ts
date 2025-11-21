@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { ProtocolType, ConnectionProtocol, ServerConfig, DeviceConfig, HeartbeatConfig, LoginConfig, DataInteractionConfig } from '@shared/types'
+import type { ProtocolType, ConnectionProtocol, ServerConfig, DeviceConfig, HeartbeatConfig, LoginConfig, DataInteractionConfig, HTTPConfig } from '@shared/types'
 import type { ConnectionStatus } from '@shared/types'
 import { DataFormatter } from '../utils/data-formatter'
 
@@ -30,6 +30,19 @@ export interface UDPSocket {
   onClose?: () => void
   onError?: (error: Error) => void
   onData?: (data: Buffer | string) => void
+}
+
+export interface HTTPClient {
+  send(data: string | object | Uint8Array, path?: string, method?: 'GET' | 'POST'): Promise<boolean>
+  connect(url: string): Promise<void>
+  disconnect(): void
+  setDefaultHeaders(headers: Record<string, string>): void
+  get(path: string, options?: any): Promise<any>
+  post(path: string, data?: any, options?: any): Promise<any>
+  put(path: string, data?: any, options?: any): Promise<any>
+  delete(path: string, options?: any): Promise<any>
+  onResponse?: (response: any) => void
+  onError?: (error: Error) => void
 }
 
 export const useConnectionStore = defineStore('connection', () => {
@@ -71,6 +84,17 @@ export const useConnectionStore = defineStore('connection', () => {
     format: 'string'
   })
 
+  // HTTP 协议配置
+  const httpConfig = ref<HTTPConfig>({
+    fullUrl: 'http://localhost:18081/api/data',
+    method: 'POST',
+    headers: {},
+    parsedScheme: 'http',
+    parsedHost: 'localhost',
+    parsedPort: 18081,
+    parsedPath: '/api/data'
+  })
+
   // 数据交互配置（独立于心跳包）
   const dataInteractionConfig = ref<DataInteractionConfig>({
     logFormat: 'string'
@@ -86,6 +110,7 @@ export const useConnectionStore = defineStore('connection', () => {
   const wsManager = ref<WebSocketManager | null>(null)
   const tcpSocket = ref<TCPSocket | null>(null)
   const udpSocket = ref<UDPSocket | null>(null)
+  const httpClient = ref<HTTPClient | null>(null)
 
   // 心跳包定时器
   let heartbeatTimer: NodeJS.Timeout | null = null
@@ -136,7 +161,7 @@ export const useConnectionStore = defineStore('connection', () => {
         const defaultPorts: Record<string, number> = {
           'ws:': 80,
           'wss:': 443,
-          'http:': 80,
+          'http:': 18081,
           'https:': 443,
           'mqtt:': 1883,
           'tcp:': 18888,
@@ -210,8 +235,8 @@ export const useConnectionStore = defineStore('connection', () => {
 
   // 方法：设置连接管理器
   const setConnectionManager = (
-    type: 'ws' | 'tcp' | 'udp',
-    manager: WebSocketManager | TCPSocket | UDPSocket | null
+    type: 'ws' | 'tcp' | 'udp' | 'http',
+    manager: WebSocketManager | TCPSocket | UDPSocket | HTTPClient | null
   ) => {
     if (type === 'ws') {
       wsManager.value = manager as WebSocketManager
@@ -219,6 +244,8 @@ export const useConnectionStore = defineStore('connection', () => {
       tcpSocket.value = manager as TCPSocket
     } else if (type === 'udp') {
       udpSocket.value = manager as UDPSocket
+    } else if (type === 'http') {
+      httpClient.value = manager as HTTPClient
     }
   }
 
@@ -230,6 +257,11 @@ export const useConnectionStore = defineStore('connection', () => {
       return await tcpSocket.value?.send(data) || false
     } else if (serverConfig.value.parsedProtocol === 'udp') {
       return await udpSocket.value?.send(data) || false
+    } else if (serverConfig.value.parsedProtocol === 'http' || serverConfig.value.parsedProtocol === 'https') {
+      // HTTP 使用用户选择的请求方法和完整路径
+      const method = httpConfig.value.method  // 使用用户配置的 GET/POST
+      const path = httpConfig.value.parsedPath || '/'
+      return await httpClient.value?.send(data, path, method) || false
     }
     return false
   }
@@ -294,6 +326,72 @@ export const useConnectionStore = defineStore('connection', () => {
     saveConfig()
   }
 
+  // 方法：更新 HTTP 配置
+  const updateHTTPConfig = (config: Partial<HTTPConfig>) => {
+    httpConfig.value = { ...httpConfig.value, ...config }
+    saveConfig()
+  }
+
+  // 方法：解析 HTTP URL
+  const parseHTTPUrl = (url: string): { success: boolean; autoCompleted: boolean; message?: string } => {
+    let inputUrl = url.trim()
+    let autoCompleted = false
+
+    // 1. 如果没有协议头，自动补全为 http://
+    if (!inputUrl.startsWith('http://') && !inputUrl.startsWith('https://')) {
+      inputUrl = 'http://' + inputUrl
+      autoCompleted = true
+    }
+
+    try {
+      const urlObj = new URL(inputUrl)
+
+      // 2. 验证协议必须是 http 或 https
+      if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+        return {
+          success: false,
+          autoCompleted: false,
+          message: 'URL 格式错误，请使用 http:// 或 https:// 开头'
+        }
+      }
+
+      // 3. 解析各个组件
+      const parsedScheme = urlObj.protocol.replace(':', '') as 'http' | 'https'
+      const parsedHost = urlObj.hostname
+      const parsedPath = urlObj.pathname + urlObj.search + urlObj.hash
+
+      // 4. 处理端口（如果未指定，根据协议使用默认端口）
+      let parsedPort: number
+      if (urlObj.port) {
+        parsedPort = parseInt(urlObj.port)
+      } else {
+        parsedPort = parsedScheme === 'https' ? 443 : 80
+      }
+
+      // 5. 更新 httpConfig
+      httpConfig.value.fullUrl = inputUrl
+      httpConfig.value.parsedScheme = parsedScheme
+      httpConfig.value.parsedHost = parsedHost
+      httpConfig.value.parsedPort = parsedPort
+      httpConfig.value.parsedPath = parsedPath
+
+      saveConfig()
+
+      return {
+        success: true,
+        autoCompleted,
+        message: autoCompleted ? '已自动补全为 http:// 协议，如需 HTTPS 请自行修改' : undefined
+      }
+    } catch (error) {
+      console.error('HTTP URL 解析失败:', error)
+      return {
+        success: false,
+        autoCompleted: false,
+        message: 'URL 格式错误，请使用 http:// 或 https:// 开头'
+      }
+    }
+  }
+
   // 方法：解析完整的 URL 地址（兼容旧版本）
   const parseConnectionString = (urlStr: string): boolean => {
     try {
@@ -336,7 +434,8 @@ export const useConnectionStore = defineStore('connection', () => {
       device: deviceConfig.value,
       heartbeat: heartbeatConfig.value,
       login: loginConfig.value,
-      dataInteraction: dataInteractionConfig.value
+      dataInteraction: dataInteractionConfig.value,
+      http: httpConfig.value
     }
     localStorage.setItem('devlinker-config', JSON.stringify(config))
   }
@@ -377,6 +476,7 @@ export const useConnectionStore = defineStore('connection', () => {
         heartbeatConfig.value = config.heartbeat || heartbeatConfig.value
         loginConfig.value = config.login || loginConfig.value
         dataInteractionConfig.value = config.dataInteraction || dataInteractionConfig.value
+        httpConfig.value = config.http || httpConfig.value
 
         // 端口兼容处理：如果端口是旧端口，自动迁移到新端口
         if (serverConfig.value.port === 8080) {
@@ -411,18 +511,22 @@ export const useConnectionStore = defineStore('connection', () => {
     heartbeatConfig,
     loginConfig,
     dataInteractionConfig,
+    httpConfig,
     connectionStatus,
     currentConnection,
     wsManager,
     tcpSocket,
     udpSocket,
+    httpClient,
     // actions
     updateServerConfig,
     updateDeviceConfig,
     updateHeartbeatConfig,
     updateLoginConfig,
     updateDataInteractionConfig,
+    updateHTTPConfig,
     parseAddress,
+    parseHTTPUrl,
     parseConnectionString,
     setConnectionStatus,
     setConnectionManager,

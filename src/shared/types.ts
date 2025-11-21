@@ -54,9 +54,15 @@ export interface MQTTConfig {
 
 // HTTP 特定配置
 export interface HTTPConfig {
-  endpoint?: string  // 默认端点路径
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  fullUrl: string  // 完整 URL（如 https://api.example.com/api/report）
+  method: 'GET' | 'POST'  // 请求方法（仅 GET/POST）
   headers?: Record<string, string>  // 自定义请求头
+
+  // 解析后的 URL 组件（自动生成，用于显示和验证）
+  parsedScheme?: 'http' | 'https'
+  parsedHost?: string
+  parsedPort?: number
+  parsedPath?: string
 }
 
 export interface LoginConfig {

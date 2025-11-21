@@ -2,32 +2,39 @@
   <div class="flex flex-col h-screen bg-white overflow-hidden">
 
     <!-- 顶部指令台 -->
-    <header class="h-16 border-b border-slate-200 flex items-center px-4 justify-between bg-white shadow-sm z-10">
-      <div class="flex items-center gap-4">
-        <div class="font-bold text-xl tracking-tight text-brand-600 flex items-center gap-2">
+    <header class="h-16 border-b border-slate-200 flex items-center px-4 justify-between bg-white shadow-sm z-10 gap-4">
+      <div class="flex items-center gap-4 flex-1 min-w-0">
+        <div class="font-bold text-xl tracking-tight text-brand-600 flex items-center gap-2 flex-shrink-0">
           <el-icon :size="20"><Connection /></el-icon>
           <span>Dev-Linker</span>
         </div>
-        <div class="h-6 w-px bg-slate-200 mx-2"></div>
+        <div class="h-6 w-px bg-slate-200 flex-shrink-0"></div>
 
-        <div class="flex gap-2">
-          <el-select v-model="store.serverConfig.protocolType" class="w-32" size="default" @change="handleProtocolTypeChange">
+        <div class="flex gap-2 flex-1 min-w-0">
+          <el-select
+            v-model="store.serverConfig.protocolType"
+            class="w-32 flex-shrink-0"
+            size="default"
+            :disabled="isConnected || isConnecting"
+            @change="handleProtocolTypeChange"
+          >
             <el-option label="WebSocket" value="WebSocket" />
             <el-option label="TCP" value="TCP" />
             <el-option label="UDP" value="UDP" />
             <el-option label="MQTT" value="MQTT" disabled />
-            <el-option label="HTTP" value="HTTP" disabled />
+            <el-option label="HTTP" value="HTTP" />
           </el-select>
           <el-input
             v-model="store.serverConfig.fullAddress"
-            class="w-64 font-mono"
+            class="flex-1 min-w-0 font-mono"
             :placeholder="addressPlaceholder"
             clearable
             @keyup.enter="handleConnectionAction"
+            @blur="handleAddressBlur"
           />
 
           <button
-            class="px-6 py-1.5 rounded-md text-sm font-medium transition-all shadow-sm-soft"
+            class="px-6 py-1.5 rounded-md text-sm font-medium transition-all shadow-sm-soft flex-shrink-0"
             :class="isConnected ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100' : 'bg-brand-600 text-white hover:bg-brand-700 shadow-blue-200'"
             :disabled="isConnecting"
             @click="handleConnectionAction"
@@ -37,7 +44,7 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-6">
+      <div class="flex items-center gap-6 flex-shrink-0">
         <!-- 状态指示器 -->
         <div class="flex items-center gap-2">
           <div
@@ -99,6 +106,7 @@ import DataInteraction from '@/components/DataInteraction.vue'
 import { WebSocketManager } from '@/utils/websocket'
 import { TCPSocket } from '@/utils/tcp'
 import { UDPSocket } from '@/utils/udp'
+import { HTTPClient } from '@/utils/http'
 import { DataFormatter } from '@/utils/data-formatter'
 import { ElMessage } from 'element-plus'
 
@@ -110,6 +118,7 @@ const dataInteractionRef = ref<InstanceType<typeof DataInteraction> | null>(null
 const wsManager = new WebSocketManager()
 const tcpSocket = new TCPSocket()
 const udpSocket = new UDPSocket()
+const httpClient = new HTTPClient()
 
 const isConnected = computed(() => store.connectionStatus === 'connected')
 const isConnecting = computed(() => store.connectionStatus === 'connecting')
@@ -142,10 +151,24 @@ const addressPlaceholder = computed(() => {
     case 'TCP': return 'localhost:18888'
     case 'UDP': return 'localhost:19000'
     case 'MQTT': return 'localhost:1883'
-    case 'HTTP': return 'localhost:8080'
+    case 'HTTP': return 'localhost:18081/api/data'
     default: return '请输入服务器地址'
   }
 })
+
+// 处理地址栏失焦 - 如果是 HTTP 协议，自动解析 URL
+const handleAddressBlur = () => {
+  if (store.serverConfig.protocolType === 'HTTP') {
+    const result = store.parseHTTPUrl(store.serverConfig.fullAddress)
+    if (result.success) {
+      if (result.autoCompleted) {
+        ElMessage.info({ message: result.message, duration: 2000, offset: 100 })
+      }
+    } else {
+      ElMessage.warning({ message: result.message || 'URL 格式错误', duration: 2000, offset: 100 })
+    }
+  }
+}
 
 // 处理协议类型变化
 const handleProtocolTypeChange = (type: string) => {
@@ -155,13 +178,18 @@ const handleProtocolTypeChange = (type: string) => {
     'TCP': 'tcp://localhost:18888',
     'UDP': 'udp://localhost:19000',
     'MQTT': 'mqtt://localhost:1883',
-    'HTTP': 'http://localhost:8080'
+    'HTTP': 'http://localhost:18081/api/data'
   }
 
   store.updateServerConfig({
     protocolType: type as any,
     fullAddress: defaultAddresses[type] || 'ws://localhost:18080'
   })
+
+  // 如果切换到 HTTP 协议，自动解析默认 URL
+  if (type === 'HTTP') {
+    store.parseHTTPUrl(defaultAddresses[type])
+  }
 }
 
 // 处理连接/断开操作
@@ -179,7 +207,7 @@ const handleConnectionAction = async () => {
 const handleConnect = async () => {
   // 1. 先解析地址
   if (!store.parseAddress()) {
-    ElMessage.error({ message: '地址格式错误，请检查输入（需包含主机名）', duration: 2000 })
+    ElMessage.error({ message: '地址格式错误，请检查输入（需包含主机名）', duration: 2000, offset: 100 })
     return
   }
 
@@ -198,7 +226,7 @@ const handleConnect = async () => {
         console.log('WebSocket connected')
         store.setConnectionStatus('connected')
         store.setConnectionManager('ws', wsManager)
-        ElMessage.success({ message: 'WebSocket 连接成功', duration: 2000 })
+        ElMessage.success({ message: 'WebSocket 连接成功', duration: 2000, offset: 100 })
 
         // 发送登录包
         sendLoginPacket()
@@ -208,13 +236,13 @@ const handleConnect = async () => {
         console.log('WebSocket disconnected')
         store.setConnectionStatus('disconnected')
         store.setConnectionManager('ws', null)
-        ElMessage.info({ message: 'WebSocket 已断开', duration: 2000 })
+        ElMessage.info({ message: 'WebSocket 已断开', duration: 2000, offset: 100 })
       }
 
       wsManager.onError = (error) => {
         console.error('WebSocket error:', error)
         store.setConnectionStatus('failed')
-        ElMessage.error({ message: 'WebSocket 连接失败', duration: 2000 })
+        ElMessage.error({ message: 'WebSocket 连接失败', duration: 2000, offset: 100 })
       }
 
       wsManager.onMessage = (data) => {
@@ -234,7 +262,7 @@ const handleConnect = async () => {
         console.log('TCP connected')
         store.setConnectionStatus('connected')
         store.setConnectionManager('tcp', tcpSocket)
-        ElMessage.success({ message: 'TCP 连接成功', duration: 2000 })
+        ElMessage.success({ message: 'TCP 连接成功', duration: 2000, offset: 100 })
 
         // 发送登录包
         sendLoginPacket()
@@ -244,13 +272,13 @@ const handleConnect = async () => {
         console.log('TCP disconnected')
         store.setConnectionStatus('disconnected')
         store.setConnectionManager('tcp', null)
-        ElMessage.info({ message: 'TCP 已断开', duration: 2000 })
+        ElMessage.info({ message: 'TCP 已断开', duration: 2000, offset: 100 })
       }
 
       tcpSocket.onError = (error) => {
         console.error('TCP error:', error)
         store.setConnectionStatus('failed')
-        ElMessage.error({ message: 'TCP 连接失败: ' + error.message, duration: 2000 })
+        ElMessage.error({ message: 'TCP 连接失败: ' + error.message, duration: 2000, offset: 100 })
       }
 
       tcpSocket.onData = (data) => {
@@ -269,7 +297,7 @@ const handleConnect = async () => {
         console.log('UDP socket ready')
         store.setConnectionStatus('connected')
         store.setConnectionManager('udp', udpSocket)
-        ElMessage.success({ message: 'UDP 连接成功', duration: 2000 })
+        ElMessage.success({ message: 'UDP 连接成功', duration: 2000, offset: 100 })
 
         // 发送登录包
         sendLoginPacket()
@@ -279,13 +307,13 @@ const handleConnect = async () => {
         console.log('UDP socket closed')
         store.setConnectionStatus('disconnected')
         store.setConnectionManager('udp', null)
-        ElMessage.info({ message: 'UDP 已断开', duration: 2000 })
+        ElMessage.info({ message: 'UDP 已断开', duration: 2000, offset: 100 })
       }
 
       udpSocket.onError = (error) => {
         console.error('UDP error:', error)
         store.setConnectionStatus('failed')
-        ElMessage.error({ message: 'UDP 错误: ' + error.message, duration: 2000 })
+        ElMessage.error({ message: 'UDP 错误: ' + error.message, duration: 2000, offset: 100 })
       }
 
       udpSocket.onData = (data) => {
@@ -297,12 +325,58 @@ const handleConnect = async () => {
 
       // 建立 UDP Socket（本地端口可选，此处使用默认）
       await udpSocket.connect(parsedHost, parsedPort)
+
+    } else if (parsedProtocol === 'http' || parsedProtocol === 'https') {
+      // HTTP 连接 - 使用完整 URL
+      const fullUrl = store.httpConfig.fullUrl
+
+      if (!fullUrl || !store.httpConfig.parsedScheme) {
+        ElMessage.error({ message: 'HTTP URL 未配置或格式错误', duration: 2000, offset: 100 })
+        store.setConnectionStatus('failed')
+        return
+      }
+
+      httpClient.onResponse = (response) => {
+        console.log('HTTP response:', response)
+        if (dataInteractionRef.value) {
+          // 将响应数据显示在日志中
+          const responseText = typeof response.data === 'object'
+            ? JSON.stringify(response.data)
+            : response.data
+          dataInteractionRef.value.simulateReceiveData(responseText)
+        }
+      }
+
+      httpClient.onError = (error) => {
+        console.error('HTTP error:', error)
+        store.setConnectionStatus('failed')
+        ElMessage.error({ message: 'HTTP 请求失败: ' + error.message, duration: 2000, offset: 100 })
+      }
+
+      // 设置默认请求头
+      if (store.httpConfig.headers && Object.keys(store.httpConfig.headers).length > 0) {
+        httpClient.setDefaultHeaders(store.httpConfig.headers)
+      }
+
+      // 从完整 URL 构建 baseUrl（协议 + 主机 + 端口）
+      const baseUrl = `${store.httpConfig.parsedScheme}://${store.httpConfig.parsedHost}:${store.httpConfig.parsedPort}`
+
+      // "连接"到服务器（实际是测试连接 GET /）
+      await httpClient.connect(baseUrl)
+
+      // 连接成功
+      store.setConnectionStatus('connected')
+      store.setConnectionManager('http', httpClient)
+      ElMessage.success({ message: 'HTTP 连接成功', duration: 2000, offset: 100 })
+
+      // 发送登录包
+      sendLoginPacket()
     }
 
   } catch (error) {
     console.error('Connection failed:', error)
     store.setConnectionStatus('failed')
-    ElMessage.error({ message: '连接失败: ' + (error as Error).message, duration: 2000 })
+    ElMessage.error({ message: '连接失败: ' + (error as Error).message, duration: 2000, offset: 100 })
   }
 }
 
@@ -335,20 +409,23 @@ const handleDisconnect = () => {
   } else if (protocol === 'udp') {
     udpSocket.disconnect()
     store.setConnectionManager('udp', null)
+  } else if (protocol === 'http' || protocol === 'https') {
+    httpClient.disconnect()
+    store.setConnectionManager('http', null)
   }
 
   store.setConnectionStatus('disconnected')
-  ElMessage.info({ message: '已断开连接', duration: 2000 })
+  ElMessage.info({ message: '已断开连接', duration: 2000, offset: 100 })
 }
 
 // 复制设备SN
 const copyDeviceSN = async () => {
   try {
     await navigator.clipboard.writeText(store.deviceConfig.sn)
-    ElMessage.success({ message: '设备SN已复制到剪贴板', duration: 2000 })
+    ElMessage.success({ message: '设备SN已复制到剪贴板', duration: 2000, offset: 100 })
   } catch (error) {
     console.error('复制失败:', error)
-    ElMessage.error({ message: '复制失败，请手动复制', duration: 2000 })
+    ElMessage.error({ message: '复制失败，请手动复制', duration: 2000, offset: 100 })
   }
 }
 

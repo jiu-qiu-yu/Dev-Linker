@@ -206,10 +206,21 @@ export class HTTPClient {
 
   /**
    * 发送数据（兼容其他协议的接口）
+   * @param data 要发送的数据
+   * @param path 端点路径（默认使用根路径）
+   * @param method 请求方法（默认 POST）
    */
-  async send(data: string | object | Uint8Array, endpoint: string = '/api/data'): Promise<boolean> {
+  async send(data: string | object | Uint8Array, path?: string, method?: 'GET' | 'POST'): Promise<boolean> {
     try {
-      await this.post(endpoint, data)
+      const requestMethod = method || 'POST'  // 默认使用 POST
+      const requestPath = path || '/'
+
+      if (requestMethod === 'POST') {
+        await this.post(requestPath, data)
+      } else {
+        await this.get(requestPath)
+      }
+
       return true
     } catch (error) {
       console.error('[HTTP] Failed to send data:', error)
